@@ -24,6 +24,11 @@
 #include <limits>
 #include <functional>
 
+
+std::string &operator+=(std::string &str, const llvm::Twine &twine) {
+    return str += twine.str();
+}
+
 // This is a dictionary that maps macro info to source locations
 template<typename T>
 class SourceLocationDict :
@@ -80,40 +85,414 @@ struct ClassDef {
 };
 
 
+class PropertyParser {
 
-static ClassDef parseClass (clang::CXXRecordDecl *RD) {
-    ClassDef res;
-    res.Record = RD;
+    clang::Lexer Lexer;
+    clang::Token PrevToken;
+    clang::Token CurrentTok;
 
-    // find the signals, and slot.
-    for ( auto it = RD->method_begin(); it != RD->method_end(); ++it ) {
+    clang::Preprocessor &PP;
 
+    void Consume() {
+        PrevToken = CurrentTok;
+        Lexer.LexFromRawLexer(CurrentTok);
+        if (CurrentTok.is(clang::tok::raw_identifier)) {
+            PP.LookUpIdentifierInfo(CurrentTok);
+        }
+    }
+
+    llvm::StringRef Spelling() {
+        return PP.getSpelling(PrevToken);
+    }
+
+    bool Test(clang::tok::TokenKind Kind) {
+        if (!CurrentTok.is(Kind))
+            return false;
+        Consume();
+        return true;
+    }
+
+
+    bool IsIdentChar(char c) {
+        return (c=='_' || c=='$' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
+    }
+
+
+    std::string LexemUntil(clang::tok::TokenKind Until) {
+        int ParensLevel = 0;
+        std::string Result;
+        do {
+            switch(+CurrentTok.getKind()) {
+                case clang::tok::eof:
+                    return Result;
+                case clang::tok::l_square:
+                case clang::tok::l_paren:
+                case clang::tok::l_brace:
+                    ++ParensLevel;
+                    break;
+                case clang::tok::r_square:
+                case clang::tok::r_paren:
+                case clang::tok::r_brace:
+                    --ParensLevel;
+                    break;
+            }
+
+            Consume();
+            auto Sp = Spelling();
+            char Last = Result[Result.size()];
+            if ((Last == '<' && Sp[0] == ':') || (IsIdentChar(Last) && IsIdentChar(Sp[0])))
+                Result += " ";
+            Result += Sp;
+        } while (ParensLevel > 0 || !PrevToken.is(Until));
+        return Result;
+    }
+
+
+public:
+
+
+    PropertyParser(llvm::StringRef Text, clang::SourceLocation Loc, clang::Preprocessor &PP) :
+        Lexer(Loc, PP.getLangOpts(), Text.begin(), Text.begin(), Text.end()), PP(PP)
+    { }
+
+
+    std::string parseUnsigned() {
+        switch(+CurrentTok.getKind()) {
+            case clang::tok::kw_int:
+                Consume();
+                return "uint";
+                break;
+            case clang::tok::kw_long:
+                Consume();
+                if (Test(clang::tok::kw_int))
+                    return "unsigned long int";
+                else if (Test(clang::tok::kw_long))
+                    return "unsigned long long";
+                else
+                    return "uint";
+                break;
+            case clang::tok::kw_short:
+            case clang::tok::kw_char:
+                Consume();
+                return ("unsigned " + Spelling()).str();
+                break;
+            default:
+                return "unsigned";
+                // do not consume;
+        }
+    }
+
+    std::string parseTemplateType() {
+        std::string Result;
+        int ParensLevel = 0;
+        bool MoveConstToFront = true;
+        bool HasConst = false;
+        do {
+            switch(+CurrentTok.getKind()) {
+                case clang::tok::eof:
+                    return {};
+                case clang::tok::greater:
+                    if (ParensLevel > 0)
+                        break;
+                    if (Result[Result.size()-1] == '>')
+                        Result += " ";
+                    Result += ">";
+                    Consume();
+                    return Result;
+                case clang::tok::less:
+                    if (ParensLevel > 0 )
+                        break;
+                    Result += "<";
+                    Consume();
+                    Result += parseTemplateType();
+                    if (!PrevToken.is(clang::tok::greater))
+                        return {};
+                    MoveConstToFront = false;
+                    continue;
+                case clang::tok::l_square:
+                case clang::tok::l_paren:
+                case clang::tok::l_brace:
+                    ++ParensLevel;
+                    break;
+                case clang::tok::r_square:
+                case clang::tok::r_paren:
+                case clang::tok::r_brace:
+                    --ParensLevel;
+                    if (ParensLevel < 0)
+                        return {};
+                    break;
+                case clang::tok::comma:
+                    if (ParensLevel > 0)
+                        break;
+                    Result += ",";
+                    return Result + parseTemplateType();
+
+                case clang::tok::kw_const:
+                    if (MoveConstToFront) {
+                        HasConst = true;
+                        continue;
+                    }
+                    break;
+                case clang::tok::kw_unsigned:
+                    if (IsIdentChar(Result[Result.size()]))
+                        Result+=" ";
+                    Result += parseUnsigned();
+                    continue;
+                case clang::tok::amp:
+                case clang::tok::ampamp:
+                case clang::tok::star:
+                    MoveConstToFront = false;
+                    break;
+            }
+
+            Consume();
+            auto Sp = Spelling();
+            char Last = Result[Result.size()];
+            if ((Last == '<' && Sp[0] == ':') || (IsIdentChar(Last) && IsIdentChar(Sp[0])))
+                Result += " ";
+            Result += Sp;
+        } while (true);
+        if (HasConst)
+            Result = "const " + Result;
+        return Result;
+    }
+
+    std::string parseType() {
+        std::string Result;
+        bool HasConst = Test(clang::tok::kw_const);
+        bool HasVolatile = Test(clang::tok::kw_volatile);
+
+        bool MoveConstToFront = true;
+
+        Test(clang::tok::kw_enum) || Test(clang::tok::kw_class) || Test(clang::tok::kw_struct);
+
+        if (Test(clang::tok::kw_unsigned)) {
+            Result += parseUnsigned();
+        } else if (Test(clang::tok::kw_signed)) {
+            Result += "signed";
+            switch(+CurrentTok.getKind()) {
+                case clang::tok::kw_int:
+                case clang::tok::kw_long:
+                case clang::tok::kw_short:
+                case clang::tok::kw_char:
+                    Consume();
+                    Result += " " + Spelling();
+            }
+        } else {
+            while(Test(clang::tok::kw_int)
+                || Test(clang::tok::kw_long)
+                || Test(clang::tok::kw_short)
+                || Test(clang::tok::kw_char)
+                || Test(clang::tok::kw_void)
+                || Test(clang::tok::kw_bool)
+                || Test(clang::tok::kw_double)
+                || Test(clang::tok::kw_float)) {
+                if (!Result.empty())
+                    Result += " ";
+                Result += Spelling();
+            }
+        }
+
+        if (Result.empty()) {
+            if (Test(clang::tok::coloncolon))
+                Result += Spelling();
+            do {
+                if (!Test(clang::tok::identifier))
+                    return {}; // that's an error
+                Result += Spelling();
+
+                if (Test(clang::tok::less)) {
+                    MoveConstToFront = false; // the official moc do not do it
+                    Result += "<";
+                    Result += parseTemplateType();
+
+                    if (!PrevToken.is(clang::tok::greater))
+                        return {}; //error;
+                }
+
+                if (!Test(clang::tok::coloncolon))
+                    break;
+
+                Result += Spelling();
+            } while (true);
+        }
+
+        if (MoveConstToFront && Test(clang::tok::kw_const)) {
+            HasConst = true;
+        }
+
+        while (Test(clang::tok::kw_volatile)
+                || Test(clang::tok::star)
+                || Test(clang::tok::amp)
+                || Test(clang::tok::ampamp)
+                || Test(clang::tok::kw_const)) {
+            Result += Spelling();
+        }
+
+        if (HasVolatile)
+            Result = "volatile " + Result;
+        if (HasConst)
+            Result = "const " + Result;
+
+        return Result;
+    }
+
+    PropertyDef parse() {
+        PropertyDef Def;
+        Consume();
+        std::string type = parseType();
+        if (type.empty()) {
+            //Error
+            return Def;
+        }
+
+        // Special logic in moc
+        if (type == "QMap")
+            type = "QMap<QString,QVariant>";
+        else if (type == "QValueList")
+            type = "QValueList<QVariant>";
+        else if (type == "LongLong")
+            type = "qlonglong";
+        else if (type == "ULongLong")
+            type = "qulonglong";
+
+        Def.type = type;
+
+
+        if (!Test(clang::tok::identifier)) {
+            //Error
+            return Def;
+        }
+
+        Def.name = Spelling();
+
+        while(Test(clang::tok::identifier)) {
+            llvm::StringRef l = Spelling();
+            if (l[0] == 'C' && l == "CONSTANT") {
+                Def.constant = true;
+                continue;
+            } else if(l[0] == 'F' && l == "FINAL") {
+                Def.final = true;
+                continue;
+            }
+            std::string v, v2;
+            if (Test(clang::tok::l_paren)) {
+                v = LexemUntil(clang::tok::r_paren);
+            } else if (Test(clang::tok::numeric_constant)) {
+                v = Spelling();
+                if (l != "REVISION") {
+                    //Error
+                    return Def;
+                }
+            } else {
+                if (!Test(clang::tok::identifier)) {
+                    //Error
+                    return Def;
+                }
+                v = Spelling();
+                if (Test(clang::tok::l_paren)) {
+                    v2 = LexemUntil(clang::tok::r_paren);
+                } else if (v != "true" && v != "false")
+                    v2 = "()";
+            }
+            switch (l[0]) {
+                case 'M':
+                    if (l == "MEMBER")
+                        Def.member = v;
+                    else
+                        return Def; // Error;
+                    break;
+                case 'R':
+                    if (l == "READ")
+                        Def.read = v;
+                    else if (l == "RESET")
+                        Def.reset = v + v2;
+                    else if (l == "REVISION") {
+                        Def.revision = atoi(v.c_str());
+                        if (Def.revision < 0)
+                            return Def; // Error;
+                    } else
+                        return Def; // Error;
+                    break;
+                case 'S':
+                    if (l == "SCRIPTABLE")
+                        Def.scriptable = v + v2;
+                    else if (l == "STORED")
+                        Def.stored = v + v2;
+                    else
+                        return Def; // Error;
+                    break;
+                case 'W': if (l != "WRITE") return Def; // Error;
+                    Def.write = v;
+                    break;
+                case 'D': if (l != "DESIGNABLE") return Def; // Error;
+                    Def.designable = v + v2;
+                    break;
+                case 'E': if (l != "EDITABLE") return Def; // Error;
+                    Def.editable = v + v2;
+                    break;
+                case 'N': if (l != "NOTIFY") return Def; // Error;
+                    Def.notify = v;
+                    break;
+                case 'U': if (l != "USER") return Def; // Error;
+                    Def.user = v + v2;
+                    break;
+                default:
+                    return Def; // Error;
+            }
+        }
+        if (!CurrentTok.is(clang::tok::eof)) {
+            return Def; // Error;
+        }
+        return Def;
+    }
+};
+
+
+static ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Preprocessor &PP) {
+    ClassDef Def;
+    Def.Record = RD;
+
+    for (auto it = RD->decls_begin(); it != RD->decls_end(); ++it) {
+        if (clang::StaticAssertDecl *S = llvm::dyn_cast<clang::StaticAssertDecl>(*it) ) {
+            if (auto *E = llvm::dyn_cast<clang::UnaryExprOrTypeTraitExpr>(S->getAssertExpr()))
+                if (auto *Kw = llvm::dyn_cast<clang::StringLiteral>(E->getArgumentExpr())) {
+                    llvm::StringRef key = Kw->getString();
+                    if (key == "qt_property") {
+                        PropertyParser Parser(S->getMessage()->getString(),
+                                              S->getMessage()->getLocationOfByte(
+                                                  0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
+                                              PP);
+                        Def.Properties.push_back(Parser.parse());
+                    }
+                }
+        } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {
        // int Clones = it->getNumParams() - it->getMinRequiredArguments();
+            for (auto attr_it = M->specific_attr_begin<clang::AnnotateAttr>();
+                attr_it != M->specific_attr_end<clang::AnnotateAttr>();
+                ++attr_it) {
 
-        for (auto attr_it = it->specific_attr_begin<clang::AnnotateAttr>();
-             attr_it != it->specific_attr_end<clang::AnnotateAttr>();
-             ++attr_it) {
-
-            const clang::AnnotateAttr *A = *attr_it;
-            if (A->getAnnotation() == "qt_signal") {
-        //        for (int i = 0; i < Clones; ++i)
-                    res.Signals.push_back(*it);
-            } else if (A->getAnnotation() == "qt_slot") {
-       //         for (int i = 0; i < Clones; ++i)
-                    res.Slots.push_back(*it);
-            } else if (A->getAnnotation() == "qt_invokable") {
-                if (auto *C = llvm::dyn_cast<clang::CXXConstructorDecl>(*it)) {
-        //            for (int i = 0; i < Clones; ++i)
-                        res.Constructors.push_back(C);
-                } else {
-        //            for (int i = 0; i < Clones; ++i)
-                        res.Method.push_back(*it);
+                const clang::AnnotateAttr *A = *attr_it;
+                if (A->getAnnotation() == "qt_signal") {
+            //        for (int i = 0; i < Clones; ++i)
+                        Def.Signals.push_back(M);
+                } else if (A->getAnnotation() == "qt_slot") {
+        //         for (int i = 0; i < Clones; ++i)
+                        Def.Slots.push_back(M);
+                } else if (A->getAnnotation() == "qt_invokable") {
+                    if (auto *C = llvm::dyn_cast<clang::CXXConstructorDecl>(M)) {
+            //            for (int i = 0; i < Clones; ++i)
+                            Def.Constructors.push_back(C);
+                    } else {
+            //            for (int i = 0; i < Clones; ++i)
+                            Def.Method.push_back(M);
+                    }
                 }
             }
         }
     }
 
-    return res;
+    return Def;
 }
 
 
@@ -197,10 +576,13 @@ public:
 
         auto MacroString = MacroNameTok.getIdentifierInfo()->getName();
         if (MacroString == "signals" || MacroString == "Q_SIGNALS")
-            AddToMacro(MI, "__attribute__((annotate(\"qt_signal\")))");
+            AddToMacro(MI, "__attribute__((annotate(\"qt_signal\")))\n");
         else if (MacroString == "slots" || MacroString == "Q_SLOTS")
-            AddToMacro(MI, "__attribute__((annotate(\"qt_slot\")))");
-
+            AddToMacro(MI, "__attribute__((annotate(\"qt_slot\")))\n");
+        else if (MacroString == "Q_PROPERTY")
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_property\", QT_STRINGIFY(text));\n");
+        else if (MacroString == "Q_OBJECT")
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_qobject\",\" \");\n");
     }
 
     virtual void FileChanged(clang::SourceLocation Loc, FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType,
@@ -209,7 +591,10 @@ public:
 private:
     void AddToMacro(const clang::MacroInfo* MI, const char *Text) {
         auto MI2 = const_cast<clang::MacroInfo*>(MI);
-        clang::Lexer Lex(MI->getDefinitionLoc(), PP.getLangOpts(), Text, Text, Text + std::strlen(Text) + 1);
+        //clang::Lexer Lex({}, PP.getLangOpts(), Text, Text, Text + std::strlen(Text) + 1);
+        auto Buf = llvm::MemoryBuffer::getMemBufferCopy(Text, "qt_moc");
+        clang::Lexer Lex(PP.getSourceManager().createFileIDForMemBuffer(Buf), Buf,
+                         PP.getSourceManager(), PP.getLangOpts());
         clang::Token Tok;
         while (!Lex.LexFromRawLexer(Tok)) {
             if (Tok.is(clang::tok::raw_identifier)) {
@@ -428,6 +813,19 @@ public:
 
         objects.push_back(RD);
 
+/*
+       for (auto it = RD->decls_begin(); it != RD->decls_end(); ++it) {
+            if (auto *S = llvm::dyn_cast<clang::StaticAssertDecl>(*it) )
+                if(auto *E = llvm::dyn_cast<clang::UnaryExprOrTypeTraitExpr>(S->getAssertExpr()))
+                    if (auto *Kw = llvm::dyn_cast<clang::StringLiteral>(E->getArgumentExpr()))
+            {
+                llvm::StringRef key = Kw->getString();
+                if (key == "qt_property") {
+                    std::cout << "PROPERTY: " << std::string(S->getMessage()->getString()) << std::endl;
+                }
+            }
+        }
+*/
 #if 0
 
         // find the signals, and slot.
