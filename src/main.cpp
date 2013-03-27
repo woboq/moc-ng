@@ -526,6 +526,10 @@ static ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Preprocessor &PP) {
             }
         }
     }
+/*
+    if (Def.HasQObject) {
+        std::cout << Def.Record->getQualifiedNameAsString() <<  " is " << Def.HasQObject << "a Q_OBJECT" << std::endl;
+    }*/
 
     return Def;
 }
@@ -677,8 +681,9 @@ class MocASTConsumer : public clang::ASTConsumer
     std::vector<ClassDef> objects;
 
 
-    static bool IsQtVirtual(llvm::StringRef Name) {
-        return (Name == "qt_metacall" || Name == "qt_matacast" || Name == "metaObject"
+    static bool IsQtVirtual(const clang::CXXMethodDecl *MD) {
+        auto Name = MD->getNameAsString();
+        return (Name == "qt_metacall" || Name == "qt_metacast" || Name == "metaObject"
             || Name == "qt_static_metacall");
     }
 
@@ -687,7 +692,7 @@ public:
     MocASTConsumer(clang::CompilerInstance &ci) :ci(ci)
     {
         //ci.getLangOpts().DelayedTemplateParsing = (true);
-        ci.getPreprocessor().enableIncrementalProcessing();
+
     }
     virtual ~MocASTConsumer() {
 //        ci.getDiagnostics().setClient(new clang::IgnoringDiagConsumer, true);
@@ -708,32 +713,43 @@ public:
     bool done = false;
     virtual bool HandleTopLevelDecl(clang::DeclGroupRef D) {
 
+        auto &PP = ci.getPreprocessor();
+        //std::cout <<"hi "  << objects.size() << done  << " " << PP.isIncrementalProcessingEnabled() << " " << PP.isCodeCompletionEnabled() << std::endl;
+
+        if (done) {
+            PP.enableIncrementalProcessing(false);
+            return true;
+        }
+
         if (!objects.size())
             return true;
 
-        if (done)
-            return true;
 
-        auto &PP = ci.getPreprocessor();
+       // auto &PP = ci.getPreprocessor();
 
         PP.EnableBacktrackAtThisPos();
         clang::Token Tok;
         PP.Lex(Tok);
         while(Tok.is(clang::tok::semi))
             PP.Lex(Tok);
-        PP.Backtrack();
+
         if (Tok.is(clang::tok::eof)) {
             done = true;
-
+            PP.CommitBacktrackedTokens();
             std::string code = generate();
             if (!code.empty()) {
                 std::cout << code << std::endl;
                 objects.clear();
                 PP.getSourceManager();
-                auto Buf = llvm::MemoryBuffer::getMemBufferCopy(";" + code + ";", "qt_moc");
+                auto Buf = llvm::MemoryBuffer::getMemBufferCopy( code, "qt_moc");
 
                 PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf), nullptr, {});
+            } else {
+                ci.getPreprocessor().enableIncrementalProcessing(false);
+                PP.Backtrack();
             }
+        } else {
+            PP.Backtrack();
         }
         return true;
     }
@@ -753,7 +769,7 @@ public:
 #else
             const clang::CXXMethodDecl *Key = ctx->getKeyFunction(RD);
 #endif
-            if (Key && Key->getIdentifier() && IsQtVirtual(Key->getIdentifier()->getName()))
+            if (Key &&  IsQtVirtual(Key))
                 Key = nullptr;
 
             if (!Key) {
@@ -770,7 +786,7 @@ public:
                     if (it->hasBody(Def) && Def->isInlineSpecified())
                         continue;
 
-                    if (it->getIdentifier() && IsQtVirtual(it->getIdentifier()->getName()))
+                    if (IsQtVirtual(*it))
                         continue;
 
                    /* if (Key->isFunctionTemplateSpecialization())
@@ -781,6 +797,12 @@ public:
                         break;
                 }
             }
+
+         /*   std::cout << RD->getQualifiedNameAsString() <<  "Has it a body? " << (bool)(Key) << (Key && !Key->hasBody()) << std::endl;
+if (Key)
+    Key->dump();
+std::cout << std::endl;*/
+
             if (Key && !Key->hasBody())
                 continue;
 
@@ -868,11 +890,11 @@ public:
         }
         return code;
     }
-
+/*
     void HandleVTable(clang::CXXRecordDecl* RD, bool DefinitionRequired) override {
-        std::cout << "################### YOYO " << RD->getNameAsString() << std::endl;
+        std::cout << "--HandleVTable-- " << RD->getNameAsString() << std::endl;
     }
-
+*/
     void HandleTagDeclDefinition(clang::TagDecl* D) override {
         clang::CXXRecordDecl *RD = llvm::dyn_cast<clang::CXXRecordDecl>(D);
         if (!RD)
@@ -888,8 +910,10 @@ public:
         PPCallbacks->seenQ_OBJECT = {};*/
 
         ClassDef Def = parseClass(RD, ci.getPreprocessor());
-        if (Def.HasQObject || Def.HasQObject)
+        if (Def.HasQObject || Def.HasQGadget) {
             objects.push_back(std::move(Def));
+            ci.getPreprocessor().enableIncrementalProcessing();
+        }
 
 /*
        for (auto it = RD->decls_begin(); it != RD->decls_end(); ++it) {
