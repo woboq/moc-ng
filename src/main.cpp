@@ -87,11 +87,42 @@ struct ClassDef {
 
 class PropertyParser {
 
+    llvm::MemoryBuffer *Buf;
     clang::Lexer Lexer;
     clang::Token PrevToken;
     clang::Token CurrentTok;
 
     clang::Preprocessor &PP;
+
+    clang::SourceLocation BaseLoc;
+
+public:
+
+    PropertyParser(llvm::StringRef Text, clang::SourceLocation Loc, clang::Preprocessor &PP) :
+        Buf(llvm::MemoryBuffer::getMemBufferCopy(Text)),
+//        Lexer(PP.getSourceManager().getSpellingLoc(Loc), PP.getLangOpts(), Text.begin(), Text.begin(), Text.end()),
+        Lexer(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Loc),
+              Buf, PP.getSourceManager(), PP.getLangOpts()),
+        PP(PP), BaseLoc(Loc)
+    {  }
+
+private:
+
+    clang::SourceLocation OriginalLocation(clang::SourceLocation SpellingLoc) {
+        return BaseLoc.getLocWithOffset(PP.getSourceManager().getFileOffset(SpellingLoc));
+        //return PP.getSourceManager() BaseLoc;µ
+      /*  std::cout << "_  _ _ " << BaseLoc.isFileID() << " " << BaseLoc.isMacroID() << " " << BaseLoc.isValid() << std::endl;
+        clang::FullSourceLoc L(BaseLoc, PP.getSourceManager());
+        L.dump();
+
+        L.getExpansionLoc().dump();
+        L.getSpellingLoc().dump();
+
+        std::cout << std::endl <<  L.getSpellingLineNumber()  << std::endl;
+*/
+
+      //  return  BaseLoc;  //PP.getSourceManager().getExpansionLoc(BaseLoc);
+    }
 
     void Consume() {
         PrevToken = CurrentTok;
@@ -101,7 +132,7 @@ class PropertyParser {
         }
     }
 
-    llvm::StringRef Spelling() {
+    std::string Spelling() {
         return PP.getSpelling(PrevToken);
     }
 
@@ -151,11 +182,6 @@ class PropertyParser {
 public:
 
 
-    PropertyParser(llvm::StringRef Text, clang::SourceLocation Loc, clang::Preprocessor &PP) :
-        Lexer(Loc, PP.getLangOpts(), Text.begin(), Text.begin(), Text.end()), PP(PP)
-    { }
-
-
     std::string parseUnsigned() {
         switch(+CurrentTok.getKind()) {
             case clang::tok::kw_int:
@@ -174,7 +200,7 @@ public:
             case clang::tok::kw_short:
             case clang::tok::kw_char:
                 Consume();
-                return ("unsigned " + Spelling()).str();
+                return "unsigned " + Spelling();
                 break;
             default:
                 return "unsigned";
@@ -367,7 +393,8 @@ public:
         Def.name = Spelling();
 
         while(Test(clang::tok::identifier)) {
-            llvm::StringRef l = Spelling();
+            std::string l = Spelling();
+            clang::SourceLocation KeywordLocation = PrevToken.getLocation();
             if (l[0] == 'C' && l == "CONSTANT") {
                 Def.constant = true;
                 continue;
@@ -438,6 +465,9 @@ public:
                     Def.user = v + v2;
                     break;
                 default:
+                    auto D = PP.getDiagnostics().Report(OriginalLocation(KeywordLocation),
+                                                        PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                                                "unkown keyword in Q_PROPERTY"));
                     return Def; // Error;
             }
         }
@@ -460,10 +490,15 @@ static ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Preprocessor &PP) {
                     llvm::StringRef key = Kw->getString();
                     if (key == "qt_property") {
                         PropertyParser Parser(S->getMessage()->getString(),
+//                                              S->getMessage()->getStrTokenLoc(0),
                                               S->getMessage()->getLocationOfByte(
                                                   0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
                                               PP);
                         Def.Properties.push_back(Parser.parse());
+                    } else if (key == "qt_qobject") {
+                        Def.HasQObject = true;
+                    } else if (key == "qt_qgadget") {
+                        Def.HasQGadget = true;
                     }
                 }
         } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {
@@ -575,14 +610,31 @@ public:
         // TODO: check we are in qobjectdefs
 
         auto MacroString = MacroNameTok.getIdentifierInfo()->getName();
-        if (MacroString == "signals" || MacroString == "Q_SIGNALS")
+        if (MacroString == "signals" || MacroString == "Q_SIGNALS" || MacroString == "Q_SIGNAL")
             AddToMacro(MI, "__attribute__((annotate(\"qt_signal\")))\n");
-        else if (MacroString == "slots" || MacroString == "Q_SLOTS")
+        else if (MacroString == "slots" || MacroString == "Q_SLOTS" || MacroString == "Q_SLOT")
             AddToMacro(MI, "__attribute__((annotate(\"qt_slot\")))\n");
+        else if (MacroString == "Q_INVOKABLE")
+            AddToMacro(MI, "__attribute__((annotate(\"qt_invokable\")))\n");
+        else if (MacroString == "Q_SCRIPTABLE")
+            AddToMacro(MI, "__attribute__((annotate(\"qt_scriptable\")))\n");
         else if (MacroString == "Q_PROPERTY")
-            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_property\", QT_STRINGIFY(text));\n");
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_property\", QT_STRINGIFY2(text));\n");
+        else if (MacroString == "Q_PRIVATE_PROPERTY")
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_private_property\", QT_STRINGIFY2(d)) \",\" QT_STRINGIFY2(text));\n");
+        else if (MacroString == "Q_CLASSINFO")
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_classinfo\", QT_STRINGIFY2(name) \",\" QT_STRINGIFY2(value));\n");
+        else if (MacroString == "Q_ENUMS")
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_enums\", QT_STRINGIFY2(x));\n");
+        else if (MacroString == "Q_FLAGS")
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_flags\", QT_STRINGIFY2(x));\n");
+        else if (MacroString == "Q_INTERFACES")
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_interface\", QT_STRINGIFY2(x));\n");
         else if (MacroString == "Q_OBJECT")
             AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_qobject\",\" \");\n");
+        else if (MacroString == "Q_GADGET")
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_qgadget\",\" \");\n");
+
     }
 
     virtual void FileChanged(clang::SourceLocation Loc, FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType,
@@ -600,6 +652,7 @@ private:
             if (Tok.is(clang::tok::raw_identifier)) {
                 PP.LookUpIdentifierInfo(Tok);
             }
+     //       Tok.setLocation(MI2->getDefinitionLoc().getLocWithOffset(5));
             MI2->AddTokenToBody(Tok);
         }
     }
@@ -613,7 +666,7 @@ class MocASTConsumer : public clang::ASTConsumer
     clang::ASTContext *ctx = nullptr;
     MocPPCallbacks *PPCallbacks = nullptr;
 
-    std::vector<clang::CXXRecordDecl*> objects;
+    std::vector<ClassDef> objects;
 
 
     static bool IsQtVirtual(llvm::StringRef Name) {
@@ -666,6 +719,7 @@ public:
 
             std::string code = generate();
             if (!code.empty()) {
+                std::cout << code << std::endl;
                 objects.clear();
                 PP.getSourceManager();
                 auto Buf = llvm::MemoryBuffer::getMemBufferCopy(";" + code + ";", "qt_moc");
@@ -681,11 +735,13 @@ public:
         std::string code;
 
 
-        for (clang::CXXRecordDecl *RD : objects ) {
+        for (const ClassDef &Def : objects ) {
+
+            auto RD = Def.Record;
 
             // find a key function: first non inline virtual method
             const clang::CXXMethodDecl *Key = ctx->getKeyFunction(RD);
-            if (Key && IsQtVirtual(Key->getName()))
+            if (Key && Key->getIdentifier() && IsQtVirtual(Key->getIdentifier()->getName()))
                 Key = nullptr;
 
             if (!Key) {
@@ -702,7 +758,7 @@ public:
                     if (it->hasBody(Def) && Def->isInlineSpecified())
                         continue;
 
-                    if (IsQtVirtual(it->getName()))
+                    if (it->getIdentifier() && IsQtVirtual(it->getIdentifier()->getName()))
                         continue;
 
                    /* if (Key->isFunctionTemplateSpecialization())
@@ -724,13 +780,16 @@ public:
 
             for ( auto it = RD->method_begin(); it != RD->method_end(); ++it ) {
 
+                if (!it->getIdentifier())
+                    continue;
+
                 clang::PrintingPolicy PrPo (ctx->getLangOpts());
                 PrPo.SuppressTagKeyword = true;
 
 
                 for (auto it2 = it->specific_attr_begin<clang::AnnotateAttr>();
                      it2 != it->specific_attr_end<clang::AnnotateAttr>();
-                ++it2) {
+                     ++it2) {
 
                     const clang::AnnotateAttr *A = *it2;
                     if (A->getAnnotation() == "qt_signal") {
@@ -767,7 +826,7 @@ public:
                 }
 
 
-                if (it->getName() == "metaObject") {
+                if (it->getIdentifier()->getName() == "metaObject") {
                     code += "const QMetaObject *" + it->getQualifiedNameAsString() + "() const { \n";
                     code += "return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject; }\n";
 
@@ -776,17 +835,22 @@ public:
                         + RD->bases_begin()->getType().getAsString(PrPo) + "::staticMetaObject ;\n";
 
                 }
-                if (it->getName() == "qt_metacast") {
+                if (it->getIdentifier()->getName() == "qt_metacast") {
                     code += "void *" + it->getQualifiedNameAsString() + "(const char *_clname) {\n";
                  /*   code += "if (!_clname) return 0;\n";
                     code += "if (!strcmp(_clname, qt_meta_stringdata_MyObj.stringdata))\n"
                     "    return static_cast<void*>(const_cast<" +  RD->getNameAsString() + "*>(this));\n" */
                     code += "return "+ RD->bases_begin()->getType().getAsString(PrPo) +"::qt_metacast(_clname); }\n";
                 }
-                if (it->getName() == "qt_metacall") {
+                if (it->getIdentifier()->getName() == "qt_metacall") {
                     code += "int " + it->getQualifiedNameAsString() + "(QMetaObject::Call _c, int _id, void **_a)  { return 0; }\n";
                 }
 
+            }
+
+
+            for (const PropertyDef &P : Def.Properties) {
+                code += "/*  " + P.type + " -> " + P.name  + "  " + P.read  + " */ \n";
             }
 
         }
@@ -801,7 +865,7 @@ public:
         clang::CXXRecordDecl *RD = llvm::dyn_cast<clang::CXXRecordDecl>(D);
         if (!RD)
             return;
-        if (!(PPCallbacks->seenQ_OBJECT.isValid() &&
+        /*if (!(PPCallbacks->seenQ_OBJECT.isValid() &&
                 ctx->getSourceManager().isBeforeInTranslationUnit(D->getSourceRange().getBegin(),
                             PPCallbacks->seenQ_OBJECT) &&
                 ctx->getSourceManager().isBeforeInTranslationUnit(PPCallbacks->seenQ_OBJECT,
@@ -809,9 +873,11 @@ public:
              ))
             return;
 
-        PPCallbacks->seenQ_OBJECT = {};
+        PPCallbacks->seenQ_OBJECT = {};*/
 
-        objects.push_back(RD);
+        ClassDef Def = parseClass(RD, ci.getPreprocessor());
+        if (Def.HasQObject || Def.HasQObject)
+            objects.push_back(std::move(Def));
 
 /*
        for (auto it = RD->decls_begin(); it != RD->decls_end(); ++it) {
