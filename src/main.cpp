@@ -4,7 +4,7 @@
  * http://woboq.com/
  ****************************************************************************/
 
-
+#include "clang/Basic/Version.h"
 #include "clang/AST/ASTContext.h"
 #include "clang/AST/ASTConsumer.h"
 #include "clang/AST/Attr.h"
@@ -592,18 +592,26 @@ class MocPPCallbacks : public clang::PPCallbacks {
 public:
     MocPPCallbacks(clang::Preprocessor &PP, MocASTConsumer* Consumer) : PP(PP), Consumer(Consumer) {}
 
+    /*
     clang::SourceLocation seenQ_OBJECT;
 
 
-
-    virtual void MacroExpands(const clang::Token& MacroNameTok, const clang::MacroInfo* MI,
+    void MacroExpands(const clang::Token& MacroNameTok, const clang::MacroInfo* MI,
                               clang::SourceRange Range) override {
         auto MacroString = MacroNameTok.getIdentifierInfo()->getName();
         if (MacroString == "Q_OBJECT")
             seenQ_OBJECT = MacroNameTok.getLocation();
     }
 
-    virtual void MacroDefined(const clang::Token& MacroNameTok, const clang::MacroInfo* MI) override {
+    */
+
+/*
+#if  CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
+    void MacroDefined(const clang::Token& MacroNameTok, const clang::MacroDirective* MD) override
+    { const auto *MI = MD->getMacroInfo();
+#else
+    void MacroDefined(const clang::Token& MacroNameTok, const clang::MacroInfo* MI) override {
+#endif
         auto Loc = MacroNameTok.getLocation();
         if (!Loc.isValid() || !Loc.isFileID())
             return;
@@ -611,37 +619,37 @@ public:
 
         auto MacroString = MacroNameTok.getIdentifierInfo()->getName();
         if (MacroString == "signals" || MacroString == "Q_SIGNALS" || MacroString == "Q_SIGNAL")
-            AddToMacro(MI, "__attribute__((annotate(\"qt_signal\")))\n");
+            AddToMacro(MI, "__attribute__((annotate(\"qt_signal\"))) //\n");
         else if (MacroString == "slots" || MacroString == "Q_SLOTS" || MacroString == "Q_SLOT")
-            AddToMacro(MI, "__attribute__((annotate(\"qt_slot\")))\n");
+            AddToMacro(MI, "__attribute__((annotate(\"qt_slot\"))) //\n");
         else if (MacroString == "Q_INVOKABLE")
-            AddToMacro(MI, "__attribute__((annotate(\"qt_invokable\")))\n");
+            AddToMacro(MI, "__attribute__((annotate(\"qt_invokable\"))) //\n");
         else if (MacroString == "Q_SCRIPTABLE")
-            AddToMacro(MI, "__attribute__((annotate(\"qt_scriptable\")))\n");
+            AddToMacro(MI, "__attribute__((annotate(\"qt_scriptable\"))) //\n");
         else if (MacroString == "Q_PROPERTY")
-            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_property\", QT_STRINGIFY2(text));\n");
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_property\", QT_STRINGIFY2(text)); //\n");
         else if (MacroString == "Q_PRIVATE_PROPERTY")
-            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_private_property\", QT_STRINGIFY2(d)) \",\" QT_STRINGIFY2(text));\n");
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_private_property\", QT_STRINGIFY2(d)) \",\" QT_STRINGIFY2(text)); //\n");
         else if (MacroString == "Q_CLASSINFO")
-            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_classinfo\", QT_STRINGIFY2(name) \",\" QT_STRINGIFY2(value));\n");
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_classinfo\", QT_STRINGIFY2(name) \",\" QT_STRINGIFY2(value)); //\n");
         else if (MacroString == "Q_ENUMS")
-            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_enums\", QT_STRINGIFY2(x));\n");
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_enums\", QT_STRINGIFY2(x)); //\n");
         else if (MacroString == "Q_FLAGS")
-            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_flags\", QT_STRINGIFY2(x));\n");
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_flags\", QT_STRINGIFY2(x)); //\n");
         else if (MacroString == "Q_INTERFACES")
-            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_interface\", QT_STRINGIFY2(x));\n");
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_interface\", QT_STRINGIFY2(x)); //\n");
         else if (MacroString == "Q_OBJECT")
-            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_qobject\",\" \");\n");
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_qobject\",\" \"); //\n");
         else if (MacroString == "Q_GADGET")
-            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_qgadget\",\" \");\n");
+            AddToMacro(MI, "__extension__ _Static_assert(sizeof \"qt_qgadget\",\" \"); //\n");
 
-    }
+    }*/
 
     virtual void FileChanged(clang::SourceLocation Loc, FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType,
                              clang::FileID PrevFID) override;
 
 private:
-    void AddToMacro(const clang::MacroInfo* MI, const char *Text) {
+    /*void AddToMacro(const clang::MacroInfo* MI, const char *Text) {
         auto MI2 = const_cast<clang::MacroInfo*>(MI);
         //clang::Lexer Lex({}, PP.getLangOpts(), Text, Text, Text + std::strlen(Text) + 1);
         auto Buf = llvm::MemoryBuffer::getMemBufferCopy(Text, "qt_moc");
@@ -655,7 +663,7 @@ private:
      //       Tok.setLocation(MI2->getDefinitionLoc().getLocWithOffset(5));
             MI2->AddTokenToBody(Tok);
         }
-    }
+    }*/
 };
 
 
@@ -740,7 +748,11 @@ public:
             auto RD = Def.Record;
 
             // find a key function: first non inline virtual method
+#if  CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
+            const clang::CXXMethodDecl *Key = ctx->getCurrentKeyFunction(RD);
+#else
             const clang::CXXMethodDecl *Key = ctx->getKeyFunction(RD);
+#endif
             if (Key && Key->getIdentifier() && IsQtVirtual(Key->getIdentifier()->getName()))
                 Key = nullptr;
 
