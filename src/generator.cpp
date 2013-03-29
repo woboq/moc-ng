@@ -56,12 +56,15 @@ void Generator::GenerateFunction(const T& V, const char* TypeName, MethodFlags T
 
     ForEachMethod(V, [&](const clang::CXXMethodDecl *M, int C) {
         unsigned int Flags = Type;
-        if (M->getAccess() == clang::AS_private)
+        if (Type == MethodSignal)
+            Flags |= AccessProtected;  // That's what moc beleive
+        else if (M->getAccess() == clang::AS_private)
             Flags |= AccessPrivate;
         else if (M->getAccess() == clang::AS_public)
             Flags |= AccessPublic;
         else if (M->getAccess() == clang::AS_protected)
             Flags |= AccessProtected;
+
         if (C)
             Flags |= MethodCloned;
 
@@ -86,6 +89,16 @@ void Generator::GenerateFunction(const T& V, const char* TypeName, MethodFlags T
     });
 }
 
+void Generator::GetTypeInfo(clang::QualType Type)
+{
+    if (Type->isVoidType()) {
+        OS << "QMetaType::Void";
+        return;
+    }
+    // FIXME:  Find the QMetaType
+    OS << "0x80000000 | " << StrIdx(Type.getAsString(PrintPolicy));
+}
+
 
 template <typename T>
 void Generator::GenerateFunctionParameters(const T& V, const char* TypeName)
@@ -99,16 +112,22 @@ void Generator::GenerateFunctionParameters(const T& V, const char* TypeName)
         int argc =  M->getNumParams() - C;
         OS << "   "; // only 3 ' ';
         //Types
-        for (int j = -1; j < argc; j++)
-            OS << " 0,"; //FIXME;
+        OS << " ";
+        GetTypeInfo(M->getResultType());
+        OS <<  ",";
+        for (int j = 0; j < argc; j++) {
+            OS << " ";
+            GetTypeInfo(M->getParamDecl(j)->getOriginalType());
+            OS <<  ",";
+        }
 
         //Names
         for (int j = 0; j < argc; j++) {
             auto P = M->getParamDecl(j);
             if (P->getIdentifier())
-                OS << " " << StrIdx(P->getName()) << " ,";
+                OS << " " << StrIdx(P->getName()) << ",";
             else
-                OS << " " << StrIdx("") << " ,";
+                OS << " " << StrIdx("") << ",";
         }
         OS << "\n";
     });
@@ -117,14 +136,14 @@ void Generator::GenerateFunctionParameters(const T& V, const char* TypeName)
 
 
 Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx) :
-    CDef(CDef), OS(OS), Ctx(Ctx)
+    CDef(CDef), OS(OS), Ctx(Ctx), PrintPolicy(Ctx.getPrintingPolicy())
 {
     QualName = CDef->Record->getQualifiedNameAsString();
 
-    clang::LangOptions LO; //FIXME;
-    clang::PrintingPolicy PrPo (LO);
-    PrPo.SuppressTagKeyword = true;
-    BaseName = CDef->Record->bases_begin()->getType().getAsString(PrPo);
+    PrintPolicy.SuppressTagKeyword = true;
+
+    if (CDef->Record->getNumBases())
+        BaseName = CDef->Record->bases_begin()->getType().getAsString(PrintPolicy);
 
     MethodCount = CountMethod(CDef->Signals) + CountMethod(CDef->Slots) + CountMethod(CDef->Methods);
 }
@@ -149,7 +168,7 @@ void Generator::GenerateCode()
         return R;
     };
 
-    OS << "static const uint qt_meta_data_" << QualifiedClassNameIdentifier << "[] = {\n"
+    OS << "\nstatic const uint qt_meta_data_" << QualifiedClassNameIdentifier << "[] = {\n"
           "    " << OutputRevision << ", // revision\n"
           "    " << StrIdx(QualName) << ", // classname\n"
           "    " << CDef->ClassInfo.size() << ", " << I(CDef->ClassInfo.size()) << ", //classinfo\n";
@@ -257,27 +276,38 @@ void Generator::GenerateCode()
 
 
     OS << "const QMetaObject " << QualName << "::staticMetaObject = {\n"
-          "    { &" << BaseName << "::staticMetaObject, qt_meta_stringdata_"<< QualifiedClassNameIdentifier <<".data,\n"
-          "      qt_meta_data_" << QualifiedClassNameIdentifier << ", qt_static_metacall, 0, 0}\n};\n";
+          "    { ";
+    if (BaseName.empty()) OS << "0";
+    else OS << "&" << BaseName << "::staticMetaObject";
 
-    OS << "const QMetaObject *" << QualName << "::metaObject() const\n{\n"
-          "    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;\n}\n";
+    OS << ", qt_meta_stringdata_"<< QualifiedClassNameIdentifier <<".data,\n"
+          "      qt_meta_data_" << QualifiedClassNameIdentifier << ", ";
+
+    if (CDef->HasQObject) OS << "qt_static_metacall";
+    else OS << "0";
+
+    OS << ", 0, 0}\n};\n";
+
+    if (CDef->HasQObject) {
+        OS << "const QMetaObject *" << QualName << "::metaObject() const\n{\n"
+              "    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;\n}\n";
 
 
-    OS << "void *" << QualName << "::qt_metacast(const char *_clname)\n{\n"
-          "    if (!_clname) return 0;\n"
-          "    if (!strcmp(_clname, qt_meta_stringdata_" << QualifiedClassNameIdentifier << ".stringdata))\n"
-          "        return static_cast<void*>(const_cast<" <<  QualifiedClassNameIdentifier << "*>(this));\n"
-          "    return "<< BaseName <<"::qt_metacast(_clname);\n"
-          "}\n";
+        OS << "void *" << QualName << "::qt_metacast(const char *_clname)\n{\n"
+              "    if (!_clname) return 0;\n"
+              "    if (!strcmp(_clname, qt_meta_stringdata_" << QualifiedClassNameIdentifier << ".stringdata))\n"
+              "        return static_cast<void*>(const_cast<" <<  QualName << "*>(this));\n"
+              "    return "<< BaseName <<"::qt_metacast(_clname);\n"
+              "}\n";
 
-    GenerateMetaCall();
-    GenerateStaticMetaCall();
+        GenerateMetaCall();
+        GenerateStaticMetaCall();
 
-    int SigIdx = 0;
-    for (const clang::CXXMethodDecl *MD : CDef->Signals) {
-        GenerateSignal(MD, SigIdx);
-        SigIdx += 1 + MD->getNumParams() - MD->getMinRequiredArguments();
+        int SigIdx = 0;
+        for (const clang::CXXMethodDecl *MD : CDef->Signals) {
+            GenerateSignal(MD, SigIdx);
+            SigIdx += 1 + MD->getNumParams() - MD->getMinRequiredArguments();
+        }
     }
 
 }
@@ -366,10 +396,15 @@ void Generator::GenerateMetaCall()
             if (p.inPrivateClass.size())
                 OS << p.inPrivateClass << "->" ;
             if (!p.write.empty())
-                OS << p.write << "()";
+                OS << p.write << "(";
             else
-                OS << p.member;
-            OS << " = *reinterpret_cast< " << p.type << "*>(_a[0]); ";
+                OS << p.member << " =  ";
+            OS << "*reinterpret_cast< " << p.type << "*>(_a[0])";
+
+            if (!p.write.empty())
+                OS << "); ";
+            else
+                OS << "; "; //FIXME: Notify signal
         });
         OS << " else ";
         HandleProperty(needReset, "ResetProperty", [&](const PropertyDef &p) {
@@ -387,7 +422,7 @@ void Generator::GenerateMetaCall()
                 const std::string &S = (p.*A);
                 if (S.empty() || S[S.size()-1] != ')')
                     return;
-                OS << "reinterpret_cast<bool*>(_a[0]) = " << S << "; ";
+                OS << "*reinterpret_cast<bool*>(_a[0]) = " << S << "; ";
             });
         };
 
@@ -417,7 +452,7 @@ void Generator::GenerateMetaCall()
 
 void Generator::GenerateStaticMetaCall()
 {
-    OS << "\nvoid " << QualName << "::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)\n{    \n";
+    OS << "\nvoid " << QualName << "::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)\n{\n    ";
 
     if (!CDef->Constructors.empty()) {
         OS << "    if (_c == QMetaObject::CreateInstance) {\n"
@@ -430,7 +465,7 @@ void Generator::GenerateStaticMetaCall()
             for (int j = 0 ; j < MD->getNumParams() - C; ++j) {
                 if (j) OS << ",";
                 //FIXME:  QPrivateSignal
-                OS << "*reinterpret_cast< " << Ctx.getPointerType(MD->getParamDecl(j)->getType().getNonReferenceType()).getAsString() << " >(_a[" << (j+1) << "])";
+                      OS << "*reinterpret_cast< " << Ctx.getPointerType(MD->getParamDecl(j)->getType().getNonReferenceType().getUnqualifiedType()).getAsString(PrintPolicy) << " >(_a[" << (j+1) << "])";
             }
             OS << ");\n            if (_a[0]) *reinterpret_cast<QObject**>(_a[0]) = _r; } break;\n";
         });
@@ -451,20 +486,22 @@ void Generator::GenerateStaticMetaCall()
                 return;
 
             OS << "        case " << MethodIndex << ": ";
-            if (!MD->getResultType()->isVoidType())
-                OS << "{ " << MD->getResultType().getNonReferenceType().getAsString() << "_r =  ";
+            // Original moc don't support reference as return type: see  Moc::parseFunction
+            bool IsVoid = MD->getResultType()->isVoidType() || MD->getResultType()->isReferenceType();
+            if (!IsVoid)
+                OS << "{ " << MD->getResultType().getUnqualifiedType().getAsString(PrintPolicy) << " _r =  ";
 
             OS << "_t->" << MD->getName() << "(";
 
             for (int j = 0 ; j < MD->getNumParams() - C; ++j) {
                 if (j) OS << ",";
                 //FIXME:  QPrivateSignal
-                OS << "*reinterpret_cast< " << Ctx.getPointerType(MD->getParamDecl(j)->getType().getNonReferenceType()).getAsString() << " >(_a[" << (j+1) << "])";
+                OS << "*reinterpret_cast< " << Ctx.getPointerType(MD->getParamDecl(j)->getType().getNonReferenceType().getUnqualifiedType()).getAsString(PrintPolicy) << " >(_a[" << (j+1) << "])";
             }
             OS << ");";
-            if (!MD->getResultType()->isVoidType()) {
+            if (!IsVoid) {
                 OS << "\n            if (_a[0]) *reinterpret_cast< "
-                   << Ctx.getPointerType(MD->getResultType().getNonReferenceType()).getAsString()
+                   << Ctx.getPointerType(MD->getResultType().getNonReferenceType().getUnqualifiedType()).getAsString(PrintPolicy)
                    << " >(_a[0]) = _r; }";
             }
             OS <<  " break;\n";
@@ -490,10 +527,10 @@ void Generator::GenerateStaticMetaCall()
             if (MD->isStatic() || !MD->getIdentifier())
                 continue;
             OS << "        {\n"
-                  "            typedef " << MD->getResultType().getAsString() << " (" << QualName << "::*_t)(";
+                  "            typedef " << MD->getResultType().getAsString(PrintPolicy) << " (" << QualName << "::*_t)(";
             for (int j = 0 ; j < MD->getNumParams(); ++j) {
                 if (j) OS << ",";
-                OS << MD->getParamDecl(j)->getType().getAsString();
+                OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy);
             }
             if (MD->isConst()) OS << ") const;\n";
             else OS << ");\n";
@@ -521,8 +558,8 @@ void Generator::GenerateStaticMetaCall()
 
         fprintf(out, "}\n\n");
 #endif
-
-    OS << "}\n";
+    OS << "\n    Q_UNUSED(_o); Q_UNUSED(_id); Q_UNUSED(_c); Q_UNUSED(_a);";
+    OS << "\n}\n";
 }
 
 void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
@@ -531,26 +568,26 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
         return;
 
     OS << "\n// SIGNAL " << Idx << "\n"
-       << MD->getResultType().getAsString() << " " << MD->getQualifiedNameAsString() + "(";
+       << MD->getResultType().getAsString(PrintPolicy) << " " << MD->getQualifiedNameAsString() + "(";
     for (int j = 0 ; j < MD->getNumParams(); ++j) {
         if (j) OS << ",";
-        OS << MD->getParamDecl(j)->getType().getAsString() << " _t" << (j+1);
+        OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy) << " _t" << (j+1);
         //FIXME PrivateSignal
     }
     OS << ")";
     std::string This = "this";
     if (MD->isConst()) {
         OS << " const";
-        This = "static_cast< " + QualName + " *>(this)";
+        This = "const_cast< " + QualName + " *>(this)";
     }
     OS << "\n{\n";
     bool IsVoid = MD->getResultType()->isVoidType();
     if (IsVoid && MD->getNumParams() == 0) {
         OS << "    QMetaObject::activate(" << This << ", &staticMetaObject, " << Idx << ", 0);\n";
     } else {
-        std::string T = MD->getResultType().getNonReferenceType().getUnqualifiedType().getAsString();
+        std::string T = MD->getResultType().getNonReferenceType().getUnqualifiedType().getAsString(PrintPolicy);
         if (MD->getResultType()->isPointerType()) {
-            OS << "    " << MD->getResultType().getAsString() << " _t0 = 0;\n";
+            OS << "    " << MD->getResultType().getAsString(PrintPolicy) << " _t0 = 0;\n";
         } else if (!IsVoid) {
             OS << "    " << T << " _t0 = " << T << "();\n";
         }
@@ -624,7 +661,6 @@ void Generator::GenerateProperties()
             flags |= Constant;
         if (p.final)
             flags |= Final;
-        //FIXME: typeinfo
         OS << "    " << StrIdx(p.name) << ", 0x80000000 | " << StrIdx(p.type) << ", 0x";
         OS.write_hex(flags) << ", // " << p.name << "\n";
     }

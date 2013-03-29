@@ -380,7 +380,7 @@ public:
                     return Def;
                 }
                 v = Spelling();
-                if (Test(clang::tok::l_paren)) {
+                if (CurrentTok.getKind() == clang::tok::l_paren) {
                     v2 = LexemUntil(clang::tok::r_paren);
                 } else if (v != "true" && v != "false")
                     v2 = "()";
@@ -556,11 +556,18 @@ class MocASTConsumer;
 class MocPPCallbacks : public clang::PPCallbacks {
     clang::Preprocessor &PP;
     MocASTConsumer* Consumer;
+
+    void InjectQObjectDefs(clang::SourceLocation Loc) {
+        #include "qobjectdefs-injected.h"
+        auto Buf = llvm::MemoryBuffer::getMemBuffer(Injected, "qobjectdefs-injected.moc");
+        PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf), nullptr, Loc);
+    }
+
 public:
 
     virtual bool FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl< char >& RecoveryPath) override
     {
-        std::cout << "FILE NOT FOUND " << std::string(FileName) << std::endl;
+        //std::cout << "FILE NOT FOUND " << std::string(FileName) << std::endl;
         if (FileName.endswith(".moc") || FileName.endswith("_moc.cpp") || FileName.startswith("moc_")) {
             PP.SetSuppressIncludeNotFoundError(true);
             /*PP.getFileManager().getVirtualFile(("/qt_dummy_moc/" + FileName).str(), 0, 0);
@@ -590,6 +597,20 @@ public:
     }
 
     */
+
+#if  CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
+    void MacroUndefined(const clang::Token& MacroNameTok, const clang::MacroDirective* MD) override {
+        const auto *MI = MD->getMacroInfo();
+#else
+    virtual void MacroUndefined(const clang::Token& MacroNameTok, const clang::MacroInfo* MI) override {
+#endif
+        //Workaround to get moc's test to compile
+        if(MacroNameTok.getIdentifierInfo()->getName() == "QT_NO_KEYWORDS") {
+            //re-inject qobjectdefs
+            InjectQObjectDefs(MacroNameTok.getLocation());
+        }
+    }
+
 
 /*
 #if  CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
@@ -632,7 +653,18 @@ public:
     }*/
 
     virtual void FileChanged(clang::SourceLocation Loc, FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType,
-                             clang::FileID PrevFID) override;
+                             clang::FileID PrevFID) override {
+            if (Reason != ExitFile)
+                return;
+            auto F = PP.getSourceManager().getFileEntryForID(PrevFID);
+            if (!F)
+                return;
+
+            llvm::StringRef name = F->getName();
+            if (name.endswith("qobjectdefs.h")) {
+                InjectQObjectDefs(Loc);
+            }
+        }
 
 private:
     /*void AddToMacro(const clang::MacroInfo* MI, const char *Text) {
@@ -773,16 +805,21 @@ public:
                    /* if (Key->isFunctionTemplateSpecialization())
                         continue; */
 
+                    if (std::any_of(it->specific_attr_begin<clang::AnnotateAttr>(),
+                                   it->specific_attr_end<clang::AnnotateAttr>(),
+                                   [](clang::AnnotateAttr *A) { return A->getAnnotation() == "qt_signal"; }))
+                        continue;
+
                     Key = *it;
                     if (Key->isVirtual())
                         break;
                 }
             }
-
+/*
             std::cout << RD->getQualifiedNameAsString() <<  " Has it a body? " << (bool)(Key) << (Key && !Key->hasBody()) << std::endl;
-if (Key)
-    Key->dump();
-std::cout << std::endl;
+            if (Key)
+                Key->dump();
+            std::cout << std::endl;*/
 
             if (Key && !Key->hasBody())
                 continue;
@@ -946,30 +983,6 @@ std::cout << std::endl;
 
 
 };
-
-
-
-
-
-
-
-
-void MocPPCallbacks::FileChanged(clang::SourceLocation Loc, clang::PPCallbacks::FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType, clang::FileID PrevFID)
-{
-    if (Reason != ExitFile)
-        return;
-    auto F = PP.getSourceManager().getFileEntryForID(PrevFID);
-    if (!F)
-        return;
-
-    llvm::StringRef name = F->getName();
-    if (name.endswith("qobjectdefs.h")) {
-#include "qobjectdefs-injected.h"
-        auto Buf = llvm::MemoryBuffer::getMemBuffer(Injected, "qobjectdefs-injected.moc");
-        PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf), nullptr, Loc);
-    }
-}
-
 
 
 /*

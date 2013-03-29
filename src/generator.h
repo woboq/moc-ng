@@ -13,11 +13,12 @@
 namespace clang {
 class ASTContext;
 class CXXMethodDecl;
+class SourceManager;
+class QualType;
 }
-namespace llvm {
-    class raw_ostream;
-    class StringRef;
-}
+
+#include <clang/AST/PrettyPrinter.h>
+
 struct ClassDef;
 
 
@@ -84,6 +85,7 @@ class Generator {
     int MethodCount;
 
     clang::ASTContext &Ctx;
+    clang::PrintingPolicy PrintPolicy;
 
 public:
     Generator(const ClassDef *CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx);
@@ -101,4 +103,6 @@ private:
     void GenerateMetaCall();
     void GenerateStaticMetaCall();
     void GenerateSignal(const clang::CXXMethodDecl *MD, int Idx);
+
+    void GetTypeInfo(clang::QualType Type);
 };
