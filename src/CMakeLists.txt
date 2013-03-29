@@ -10,7 +10,7 @@ Find_Package(Clang REQUIRED)
 include_directories(${CLANG_INCLUDE_DIRS})
 
 
- add_library(mocng_plugin SHARED main.cpp generator.cpp propertyparser.cpp)
+ add_library(mocng_plugin SHARED main.cpp mocng.cpp generator.cpp propertyparser.cpp)
 # add_executable(mocng_plugin main.cpp)
 target_link_libraries(mocng_plugin  ${CLANG_LIBS} ${LLVM_LIBS_CORE} )
 

@@ -15,6 +15,7 @@ class CXXMethodDecl;
 class CXXRecordDecl;
 class CXXConstructorDecl;
 class EnumDecl;
+class Preprocessor;
 }
 
 
@@ -56,3 +57,6 @@ struct ClassDef {
     //TODO: FLagAliases;
 };
 
+
+
+ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Preprocessor &PP);
