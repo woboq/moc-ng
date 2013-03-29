@@ -625,7 +625,7 @@ void Generator::GenerateProperties()
         if (p.final)
             flags |= Final;
         //FIXME: typeinfo
-        OS << "    " << StrIdx(p.name) << ", 0, 0x";
+        OS << "    " << StrIdx(p.name) << ", 0x80000000 | " << StrIdx(p.type) << ", 0x";
         OS.write_hex(flags) << ", // " << p.name << "\n";
     }
     //TODO: NOTIFY + REVISION
