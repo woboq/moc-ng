@@ -3,9 +3,9 @@
 const char Injected[] = R"-(
 
 #define QT_ANNOTATE_CLASS(type, anotation) \
-    __extension__ _Static_assert(sizeof #type, #anotation);
+    __extension__ _Static_assert(sizeof (#anotation), #type);
 #define QT_ANNOTATE_CLASS2(type, a1, a2) \
-    __extension__ _Static_assert(sizeof #type, #a1 "," #a2);
+    __extension__ _Static_assert(sizeof (#a1, #a2), #type);
 
 
 
@@ -42,7 +42,7 @@ const char Injected[] = R"-(
 #undef Q_SIGNAL
 #undef Q_SLOT
 
-#define Q_CLASSINFO(name, value) QT_ANNOTATE_CLASS2(qt_classinfo, name, value)
+#define Q_CLASSINFO(name, value)  __extension__ _Static_assert(sizeof (name, value), "qt_classinfo");
 #define Q_PLUGIN_METADATA(x) QT_ANNOTATE_CLASS(qt_plugin_metadata, x)
 #define Q_INTERFACES(x) QT_ANNOTATE_CLASS(qt_interfaces, x)
 #define Q_PROPERTY(text) QT_ANNOTATE_CLASS(qt_property, text)

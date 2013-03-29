@@ -201,7 +201,7 @@ void Generator::GenerateCode()
     OS << "\nstatic const uint qt_meta_data_" << QualifiedClassNameIdentifier << "[] = {\n"
           "    " << OutputRevision << ", // revision\n"
           "    " << StrIdx(QualName) << ", // classname\n"
-          "    " << CDef->ClassInfo.size() << ", " << I(CDef->ClassInfo.size()) << ", //classinfo\n";
+          "    " << CDef->ClassInfo.size() << ", " << I(CDef->ClassInfo.size() * 2) << ", //classinfo\n";
 
     OS << "    " << MethodCount << ", " << I(MethodCount * 5) << ", // methods \n";
 
