@@ -89,14 +89,44 @@ void Generator::GenerateFunction(const T& V, const char* TypeName, MethodFlags T
     });
 }
 
+
+static bool IsIdentChar(char c) {
+    return (c=='_' || c=='$' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
+}
+
 void Generator::GetTypeInfo(clang::QualType Type)
 {
     if (Type->isVoidType()) {
         OS << "QMetaType::Void";
         return;
     }
-    // FIXME:  Find the QMetaType
-    OS << "0x80000000 | " << StrIdx(Type.getAsString(PrintPolicy));
+    // TODO:  Find the QMetaType
+
+    // remove const or const &
+    if (Type->isReferenceType() && Type.getNonReferenceType().isConstQualified())
+        Type = Type.getNonReferenceType();
+    Type.removeLocalConst();
+    std::string TypeString = Type.getAsString(PrintPolicy);
+
+    // Remove the spaces;
+    int k = 0;
+    for (int i = 0; i < TypeString.size(); ++i) {
+        char C = TypeString[i];
+        if (C == ' ') {
+            if (k == 0)
+                continue;
+            if (i+1 == TypeString.size())
+                continue;
+            char P = TypeString[k-1];
+            char N = TypeString[i+1];
+            if (!(IsIdentChar(P) && IsIdentChar(N))
+                && !(P == '>' && N == '>'))
+                continue;
+        }
+        TypeString[k++] = C;
+    }
+    TypeString.resize(k);
+    OS << "0x80000000 | " << StrIdx(TypeString);
 }
 
 
