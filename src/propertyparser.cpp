@@ -249,86 +249,74 @@ PropertyDef PropertyParser::parse() {
 
     while(Test(clang::tok::identifier)) {
         std::string l = Spelling();
-        clang::SourceLocation KeywordLocation = PrevToken.getLocation();
-        if (l[0] == 'C' && l == "CONSTANT") {
+        clang::SourceLocation KeywordLocation = OriginalLocation();
+        if (l == "CONSTANT") {
             Def.constant = true;
             continue;
-        } else if(l[0] == 'F' && l == "FINAL") {
+        } else if(l == "FINAL") {
             Def.final = true;
             continue;
+        } else if (l == "REVISION") {
+            if (!Test(clang::tok::numeric_constant)) {
+                PP.getDiagnostics().Report(OriginalLocation(),
+                                           PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                           "Expected numeric constant after REVISION in Q_PROPERTY"));
+                return Def;
+            }
+            Def.revision = atoi(Spelling().c_str());
+            if (Def.revision < 0) {
+                PP.getDiagnostics().Report(OriginalLocation(),
+                                           PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                           "Invalid REVISION number in Q_PROPERTY"));
+                return Def;
+            }
+            continue;
         }
+
         std::string v, v2;
-        if (Test(clang::tok::l_paren)) {
+        if (CurrentTok.getKind() == clang::tok::l_paren) {
             v = LexemUntil(clang::tok::r_paren);
-        } else if (Test(clang::tok::numeric_constant)) {
-            v = Spelling();
-            if (l != "REVISION") {
-                //Error
-                return Def;
-            }
-        } else {
-            if (!Test(clang::tok::identifier)) {
-                //Error
-                return Def;
-            }
+        } else if (Test(clang::tok::identifier)) {
             v = Spelling();
             if (CurrentTok.getKind() == clang::tok::l_paren) {
                 v2 = LexemUntil(clang::tok::r_paren);
-            } else if (v != "true" && v != "false")
+            } else {
                 v2 = "()";
+            }
+        } else if(Test(clang::tok::kw_true) || Test(clang::tok::kw_false)) {
+            v = Spelling();
+        } else {
+            PP.getDiagnostics().Report(OriginalLocation(),
+                                       PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                       "Parse error in Q_PROPERTY: Expected identifier"));
+            return Def;
         }
-        switch (l[0]) {
-        case 'M':
-            if (l == "MEMBER")
-                Def.member = v;
-            else
-                return Def; // Error;
-            break;
-        case 'R':
-            if (l == "READ")
-                Def.read = v;
-            else if (l == "RESET")
-                Def.reset = v + v2;
-            else if (l == "REVISION") {
-                Def.revision = atoi(v.c_str());
-                if (Def.revision < 0)
-                    return Def; // Error;
-            } else
-                return Def; // Error;
-            break;
-        case 'S':
-            if (l == "SCRIPTABLE")
-                Def.scriptable = v + v2;
-            else if (l == "STORED")
-                Def.stored = v + v2;
-            else
-                return Def; // Error;
-            break;
-        case 'W':
-            if (l != "WRITE") return Def; // Error;
+
+        if (l == "MEMBER")
+            Def.member = v;
+        else if (l == "READ")
+            Def.read = v;
+        else if (l == "RESET")
+            Def.reset = v + v2;
+        else if (l == "SCRIPTABLE")
+            Def.scriptable = v + v2;
+        else if (l == "STORED")
+            Def.stored = v + v2;
+        else if (l == "WRITE")
             Def.write = v;
-            break;
-        case 'D':
-            if (l != "DESIGNABLE") return Def; // Error;
+        else if (l == "DESIGNABLE")
             Def.designable = v + v2;
-            break;
-        case 'E':
-            if (l != "EDITABLE") return Def; // Error;
+        else if (l == "EDITABLE")
             Def.editable = v + v2;
-            break;
-        case 'N':
-            if (l != "NOTIFY") return Def; // Error;
+        else if (l == "NOTIFY")
             Def.notify = v;
-            break;
-        case 'U':
-            if (l != "USER") return Def; // Error;
+        else if (l == "USER")
             Def.user = v + v2;
-            break;
-        default:
-            auto D = PP.getDiagnostics().Report(OriginalLocation(KeywordLocation),
-                                                PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
-                                                        "unkown keyword in Q_PROPERTY"));
-            return Def; // Error;
+        else {
+            PP.getDiagnostics().Report(OriginalLocation(KeywordLocation),
+                                       PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                       "Expected a Q_PROPERTY keyword"));
+            return Def;
         }
     }
     if (!CurrentTok.is(clang::tok::eof)) {

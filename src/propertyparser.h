@@ -26,7 +26,7 @@ class PropertyParser {
 public:
 
     PropertyParser(llvm::StringRef Text, clang::SourceLocation Loc, clang::Preprocessor &PP) :
-        Buf(llvm::MemoryBuffer::getMemBufferCopy(Text)),
+        Buf(llvm::MemoryBuffer::getMemBufferCopy(Text, "Q_PROPERTY")),
 //        Lexer(PP.getSourceManager().getSpellingLoc(Loc), PP.getLangOpts(), Text.begin(), Text.begin(), Text.end()),
         Lexer(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Loc),
               Buf, PP.getSourceManager(), PP.getLangOpts()),
@@ -34,21 +34,10 @@ public:
     {  }
 
 private:
-
-    clang::SourceLocation OriginalLocation(clang::SourceLocation SpellingLoc) {
+    clang::SourceLocation OriginalLocation(clang::SourceLocation SpellingLoc = clang::SourceLocation()) {
+        if (SpellingLoc.isInvalid())
+            SpellingLoc = PrevToken.getLocation();
         return BaseLoc.getLocWithOffset(PP.getSourceManager().getFileOffset(SpellingLoc));
-        //return PP.getSourceManager() BaseLoc;µ
-      /*  std::cout << "_  _ _ " << BaseLoc.isFileID() << " " << BaseLoc.isMacroID() << " " << BaseLoc.isValid() << std::endl;
-        clang::FullSourceLoc L(BaseLoc, PP.getSourceManager());
-        L.dump();
-
-        L.getExpansionLoc().dump();
-        L.getSpellingLoc().dump();
-
-        std::cout << std::endl <<  L.getSpellingLineNumber()  << std::endl;
-*/
-
-      //  return  BaseLoc;  //PP.getSourceManager().getExpansionLoc(BaseLoc);
     }
 
     void Consume() {
