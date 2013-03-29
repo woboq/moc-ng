@@ -73,3 +73,5 @@ private: \
 #undef Q_OBJECT_FAKE
 #define Q_OBJECT_FAKE Q_OBJECT QT_ANNOTATE_CLASS(qt_fake, "")
 
+#undef QT_MOC_COMPAT
+#define QT_MOC_COMPAT  __attribute__((annotate("qt_moc_compat")))

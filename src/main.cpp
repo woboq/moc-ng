@@ -25,6 +25,10 @@
 #include <functional>
 
 
+#include "mocng.h"
+#include "generator.h"
+
+
 std::string &operator+=(std::string &str, const llvm::Twine &twine) {
     return str += twine.str();
 }
@@ -42,47 +46,6 @@ class SourceLocationDict :
                 }) {}
 };
 
-
-
-
-
-struct PropertyDef {
-    std::string name, type, member, read, write, reset, designable, scriptable, editable, stored,
-                user, notify, inPrivateClass;
-    int notifyId = -1;
-    bool constant = false;
-    bool final = false;
-
-    // ### ???
-    enum Specification  { ValueSpec, ReferenceSpec, PointerSpec };
-    Specification gspec = ValueSpec;
-
-    int revision = 0;
-};
-
-
-struct ClassDef {
-
-    clang::CXXRecordDecl *Record = nullptr;
-
-    // This list only includes the things registered with the keywords
-    std::vector<clang::CXXMethodDecl*> Signals;
-    std::vector<clang::CXXMethodDecl*> Slots;
-    std::vector<clang::CXXMethodDecl*> Method;
-    std::vector<clang::CXXConstructorDecl*> Constructors;
-    std::vector<std::pair<clang::EnumDecl*, bool>> Enums;  //### or string?
-
-    std::vector<std::pair<std::string, std::string>> Interfaces;
-    std::vector<std::pair<std::string, std::string>> ClassInfo;
-
-    std::vector<PropertyDef> Properties;
-
-    bool HasQObject = false;
-    bool HasQGadget = false;
-
-    //TODO: PluginData;
-    //TODO: FLagAliases;
-};
 
 
 class PropertyParser {
@@ -520,7 +483,7 @@ static ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Preprocessor &PP) {
                             Def.Constructors.push_back(C);
                     } else {
             //            for (int i = 0; i < Clones; ++i)
-                            Def.Method.push_back(M);
+                            Def.Methods.push_back(M);
                     }
                 }
             }
@@ -756,7 +719,8 @@ public:
 
     std::string generate() {
 
-        std::string code;
+        std::string Code;
+        llvm::raw_string_ostream OS(Code);
 
 
         for (const ClassDef &Def : objects ) {
@@ -807,6 +771,11 @@ std::cout << std::endl;*/
                 continue;
 
 
+            Generator G(&Def, OS, *ctx);
+            G.GenerateCode();
+
+#if 0
+
             //We need to generate the contents for the signals:
 
 
@@ -828,27 +797,27 @@ std::cout << std::endl;*/
                     const clang::AnnotateAttr *A = *it2;
                     if (A->getAnnotation() == "qt_signal") {
 
-                        code += "void " + it->getQualifiedNameAsString() + "(";
+                        Code += "void " + it->getQualifiedNameAsString() + "(";
                         int arg_index = 0;
                         int clones = 0;
                         for (auto p_it = it->param_begin() ; p_it != it->param_end(); ++p_it) {
                             clang::QualType T = (*p_it)->getType();
                             if (arg_index != 0)
-                                code += ", ";
+                                Code += ", ";
                             arg_index++;
                             if ((*p_it)->hasDefaultArg())
                                 clones++;
-                            code += T.getAsString() + " " + "_t" + toStr(arg_index);
+                            Code += T.getAsString() + " " + "_t" + toStr(arg_index);
                         }
-                        code += ") \n { \n  void *_a[] = { 0 ";
+                        Code += ") \n { \n  void *_a[] = { 0 ";
 
                         arg_index = 0;
                         for (auto p_it = it->param_begin() ; p_it != it->param_end(); ++p_it) {
                             arg_index++;
-                            code += ", const_cast<void*>(reinterpret_cast<const void *>(&_t" + toStr(arg_index) + ")) ";
+                            Code += ", const_cast<void*>(reinterpret_cast<const void *>(&_t" + toStr(arg_index) + ")) ";
                         }
 
-                        code += "};\n  QMetaObject::activate(this, &staticMetaObject, " + toStr(signal_index) + ", _a); } \n";
+                        Code += "};\n  QMetaObject::activate(this, &staticMetaObject, " + toStr(signal_index) + ", _a); } \n";
 
                         signal_index += 1 + clones;
 
@@ -861,34 +830,35 @@ std::cout << std::endl;*/
 
 
                 if (it->getIdentifier()->getName() == "metaObject") {
-                    code += "const QMetaObject *" + it->getQualifiedNameAsString() + "() const { \n";
-                    code += "return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject; }\n";
+                    Code += "const QMetaObject *" + it->getQualifiedNameAsString() + "() const { \n";
+                    Code += "return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject; }\n";
 
 
-                    code += "const QMetaObject " + RD->getQualifiedNameAsString() +  "::staticMetaObject = "
+                    Code += "const QMetaObject " + RD->getQualifiedNameAsString() +  "::staticMetaObject = "
                         + RD->bases_begin()->getType().getAsString(PrPo) + "::staticMetaObject ;\n";
 
                 }
                 if (it->getIdentifier()->getName() == "qt_metacast") {
-                    code += "void *" + it->getQualifiedNameAsString() + "(const char *_clname) {\n";
+                    Code += "void *" + it->getQualifiedNameAsString() + "(const char *_clname) {\n";
                  /*   code += "if (!_clname) return 0;\n";
                     code += "if (!strcmp(_clname, qt_meta_stringdata_MyObj.stringdata))\n"
                     "    return static_cast<void*>(const_cast<" +  RD->getNameAsString() + "*>(this));\n" */
-                    code += "return "+ RD->bases_begin()->getType().getAsString(PrPo) +"::qt_metacast(_clname); }\n";
+                    Code += "return "+ RD->bases_begin()->getType().getAsString(PrPo) +"::qt_metacast(_clname); }\n";
                 }
                 if (it->getIdentifier()->getName() == "qt_metacall") {
-                    code += "int " + it->getQualifiedNameAsString() + "(QMetaObject::Call _c, int _id, void **_a)  { return 0; }\n";
+                    Code += "int " + it->getQualifiedNameAsString() + "(QMetaObject::Call _c, int _id, void **_a)  { return 0; }\n";
                 }
 
             }
 
 
             for (const PropertyDef &P : Def.Properties) {
-                code += "/*  " + P.type + " -> " + P.name  + "  " + P.read  + " */ \n";
+                Code += "/*  " + P.type + " -> " + P.name  + "  " + P.read  + " */ \n";
             }
-
+        #endif
         }
-        return code;
+        return Code;
+
     }
 /*
     void HandleVTable(clang::CXXRecordDecl* RD, bool DefinitionRequired) override {
