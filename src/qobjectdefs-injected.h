@@ -1,4 +1,6 @@
-#include <QtCore/qobjectdefs.h>
+//#include <QtCore/qobjectdefs.h>
+
+const char Injected[] = R"-(
 
 #define QT_ANNOTATE_CLASS(type, anotation) \
     __extension__ _Static_assert(sizeof #type, #anotation);
@@ -75,3 +77,5 @@ private: \
 
 #undef QT_MOC_COMPAT
 #define QT_MOC_COMPAT  __attribute__((annotate("qt_moc_compat")))
+
+)-";

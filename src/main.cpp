@@ -557,6 +557,25 @@ class MocPPCallbacks : public clang::PPCallbacks {
     clang::Preprocessor &PP;
     MocASTConsumer* Consumer;
 public:
+
+    virtual bool FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl< char >& RecoveryPath) override
+    {
+        std::cout << "FILE NOT FOUND " << std::string(FileName) << std::endl;
+        if (FileName.endswith(".moc") || FileName.endswith("_moc.cpp") || FileName.startswith("moc_")) {
+            PP.SetSuppressIncludeNotFoundError(true);
+            /*PP.getFileManager().getVirtualFile(("/qt_dummy_moc/" + FileName).str(), 0, 0);
+            const char *R = "/qt_dummy_moc/";
+            RecoveryPath.assign(14, *R);
+            std::cout << RecoveryPath.data() << " " << std::endl;
+            return true;*/
+        } else {
+            PP.SetSuppressIncludeNotFoundError(false);
+        }
+        return false;
+    }
+
+
+
     MocPPCallbacks(clang::Preprocessor &PP, MocASTConsumer* Consumer) : PP(PP), Consumer(Consumer) {}
 
     /*
@@ -703,9 +722,7 @@ public:
             if (!code.empty()) {
                 std::cout << code << std::endl;
                 objects.clear();
-                PP.getSourceManager();
                 auto Buf = llvm::MemoryBuffer::getMemBufferCopy( code, "qt_moc");
-
                 PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf), nullptr, {});
             } else {
                 ci.getPreprocessor().enableIncrementalProcessing(false);
@@ -762,10 +779,10 @@ public:
                 }
             }
 
-         /*   std::cout << RD->getQualifiedNameAsString() <<  "Has it a body? " << (bool)(Key) << (Key && !Key->hasBody()) << std::endl;
+            std::cout << RD->getQualifiedNameAsString() <<  " Has it a body? " << (bool)(Key) << (Key && !Key->hasBody()) << std::endl;
 if (Key)
     Key->dump();
-std::cout << std::endl;*/
+std::cout << std::endl;
 
             if (Key && !Key->hasBody())
                 continue;
@@ -939,23 +956,18 @@ std::cout << std::endl;*/
 
 void MocPPCallbacks::FileChanged(clang::SourceLocation Loc, clang::PPCallbacks::FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType, clang::FileID PrevFID)
 {
-   /* std::cout << "FILE CHANGED " << Reason << std::endl;
-    auto F = PP.getSourceManager().getFileEntryForID(PrevFID);
-    if (F)
-        std::cout << F->getName() << std::endl;
-
-
-    if (Reason == ExitFile && PrevFID == PP.getSourceManager().getMainFileID()) {
-    } else {
+    if (Reason != ExitFile)
         return;
-    }
+    auto F = PP.getSourceManager().getFileEntryForID(PrevFID);
+    if (!F)
+        return;
 
-    std::string code = Consumer->generate();
-    if (!code.empty()) {
-        PP.getSourceManager();
-        auto Buf = llvm::MemoryBuffer::getMemBufferCopy(code, "qt_moc");
-        PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf), nullptr, {});
-    }*/
+    llvm::StringRef name = F->getName();
+    if (name.endswith("qobjectdefs.h")) {
+#include "qobjectdefs-injected.h"
+        auto Buf = llvm::MemoryBuffer::getMemBuffer(Injected, "qobjectdefs-injected.moc");
+        PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf), nullptr, Loc);
+    }
 }
 
 
