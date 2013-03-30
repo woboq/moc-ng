@@ -9,6 +9,8 @@
 
 #include <clang/Lex/Preprocessor.h>
 #include <clang/AST/DeclCXX.h>
+#include <clang/AST/DeclTemplate.h>
+#include <clang/AST/Type.h>
 #include <clang/Sema/Sema.h>
 #include <clang/Sema/Lookup.h>
 
@@ -47,9 +49,10 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
         if (Tok.is(clang::tok::identifier)) {
 
             if (Next.is(clang::tok::coloncolon)) {
-                if (!Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(Def.Record), *II,
+                if (Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(Def.Record), *II,
                         GetFromLiteral(Tok, Val, PP), GetFromLiteral(Next, Val, PP), {}, false, SS))
                     SS.SetInvalid({GetFromLiteral(Tok, Val, PP), GetFromLiteral(Next, Val, PP)});
+
                 Lex.LexFromRawLexer(Next);
                 continue;
             }
@@ -62,7 +65,22 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
                 Sema.LookupQualifiedName(Found, DC ? DC : Def.Record);
             }
 
+            std::string Alias;
             clang::EnumDecl* R = Found.getAsSingle<clang::EnumDecl>();
+
+            if (!R) {
+                if (clang::TypedefDecl *TD = Found.getAsSingle<clang::TypedefDecl>()) {
+                    const clang::EnumType* ET = TD->getUnderlyingType()->getAs<clang::EnumType>();
+                    const clang::TemplateSpecializationType* TDR = TD->getUnderlyingType()->getAs<clang::TemplateSpecializationType>();
+                    if(TDR && TDR->getNumArgs() == 1 && TDR->getTemplateName().getAsTemplateDecl()->getName() == "QFlags")
+                        ET = TDR->getArg(0).getAsType()->getAs<clang::EnumType>();
+                    if (ET) {
+                        R = ET->getDecl();
+                        Alias = TD->getNameAsString();
+                    }
+                }
+            }
+
             if (Found.empty() || !R) {
                 // TODO: typo correction
 
@@ -72,7 +90,12 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
                                             "no enum names %0")) << Found.getLookupName();
                 break;
             }
-            Def.Enums.emplace_back(R, isFlag);
+            if (R->getDeclContext() == Def.Record)
+                Def.addEnum(R, Alias.empty() ? R->getNameAsString() : Alias, isFlag);
+            else if (R->getDeclContext()->isRecord() &&  llvm::isa<clang::CXXRecordDecl>(R->getDeclContext())) {
+                // TODO: check it is a QObject
+                Def.addExtra(llvm::cast<clang::CXXRecordDecl>(R->getDeclContext()));
+            }
             continue;
         } else if (Tok.is(clang::tok::coloncolon)) {
             if (SS.isEmpty()) {
@@ -107,8 +130,9 @@ ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema) {
                         PropertyParser Parser(Val->getString(),
     //                                          Val->getStrTokenLoc(0),
                                             Val->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
-                                            PP);
+                                            Sema, Def.Record);
                         Def.Properties.push_back(Parser.parse());
+                        Def.addExtra(Parser.Extra);
                     } else {
                         PP.getDiagnostics().Report(S->getLocation(),
                                                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,

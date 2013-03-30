@@ -302,10 +302,17 @@ void Generator::GenerateCode()
     OS << "\"\n};\n"
           "#undef QT_MOC_LITERAL\n";
 
-    // TODO: extra array
+    if (!CDef->Extra.empty()) {
+        OS << "static const QMetaObject *qt_meta_extradata_" << QualifiedClassNameIdentifier << "[] = {\n" ;
+        for (clang::CXXRecordDecl *E : CDef->Extra)
+            //TODO: Check that extra is a QObject
+            OS << "    &" << E->getQualifiedNameAsString() << "::staticMetaObject,\n";
 
+        OS << "    0\n};\n";
 
-    OS << "const QMetaObject " << QualName << "::staticMetaObject = {\n"
+    }
+
+    OS << "\nconst QMetaObject " << QualName << "::staticMetaObject = {\n"
           "    { ";
     if (BaseName.empty()) OS << "0";
     else OS << "&" << BaseName << "::staticMetaObject";
@@ -313,10 +320,12 @@ void Generator::GenerateCode()
     OS << ", qt_meta_stringdata_"<< QualifiedClassNameIdentifier <<".data,\n"
           "      qt_meta_data_" << QualifiedClassNameIdentifier << ", ";
 
-    if (CDef->HasQObject) OS << "qt_static_metacall";
-    else OS << "0";
+    if (CDef->HasQObject) OS << "qt_static_metacall, ";
+    else OS << "0, ";
 
-    OS << ", 0, 0}\n};\n";
+    if (!CDef->Extra.empty()) OS << "qt_meta_extradata_" << QualifiedClassNameIdentifier << ", ";
+    else OS << "0, ";
+    OS << "0}\n};\n";
 
     if (CDef->HasQObject) {
         OS << "const QMetaObject *" << QualName << "::metaObject() const\n{\n"
@@ -649,9 +658,8 @@ void Generator::GenerateProperties()
         return;
     for (const PropertyDef &p : CDef->Properties) {
         unsigned int flags = Invalid;
-        //FIXME:
-        //if (!isBuiltinType(p.type))
-        //    Flags |= EnumOrFlag;
+        if (p.isEnum)
+            flags |= EnumOrFlag;
         if (!p.member.empty() && !p.constant)
             flags |= Writable;
         if (!p.read.empty() || !p.member.empty())

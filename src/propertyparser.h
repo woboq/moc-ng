@@ -9,28 +9,38 @@
 #include <clang/Lex/Token.h>
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Lex/Lexer.h>
+#include <clang/Sema/Sema.h>
 #include "mocng.h"
 
 
 class PropertyParser {
+    clang::Sema &Sema;
+    clang::Preprocessor &PP;
 
     llvm::MemoryBuffer *Buf;
     clang::Lexer Lexer;
     clang::Token PrevToken;
     clang::Token CurrentTok;
 
-    clang::Preprocessor &PP;
+
 
     clang::SourceLocation BaseLoc;
 
+    clang::CXXRecordDecl *RD;
+
+    bool IsEnum = false;
+
 public:
 
-    PropertyParser(llvm::StringRef Text, clang::SourceLocation Loc, clang::Preprocessor &PP) :
+    clang::CXXRecordDecl *Extra = nullptr;
+
+    PropertyParser(llvm::StringRef Text, clang::SourceLocation Loc, clang::Sema &Sema, clang::CXXRecordDecl *RD) :
+        Sema(Sema), PP(Sema.getPreprocessor()),
         Buf(llvm::MemoryBuffer::getMemBufferCopy(Text, "Q_PROPERTY")),
 //        Lexer(PP.getSourceManager().getSpellingLoc(Loc), PP.getLangOpts(), Text.begin(), Text.begin(), Text.end()),
         Lexer(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Loc),
               Buf, PP.getSourceManager(), PP.getLangOpts()),
-        PP(PP), BaseLoc(Loc)
+        BaseLoc(Loc), RD(RD)
     {  }
 
 private:

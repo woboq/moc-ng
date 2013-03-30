@@ -6,6 +6,7 @@
 
 
 #include "propertyparser.h"
+#include <clang/Sema/Lookup.h>
 
 std::string PropertyParser::LexemUntil(clang::tok::TokenKind Until) {
     int ParensLevel = 0;
@@ -72,6 +73,15 @@ std::string PropertyParser::parseTemplateType() {
         switch(+CurrentTok.getKind()) {
         case clang::tok::eof:
             return {};
+        case clang::tok::greatergreater:
+            if (ParensLevel > 0)
+                break;
+            CurrentTok.setKind(clang::tok::greater);
+            PrevToken.setKind(clang::tok::greater);
+            if (Result[Result.size()-1] == '>')
+                Result += " ";
+            Result += ">";
+            return Result;
         case clang::tok::greater:
             if (ParensLevel > 0)
                 break;
@@ -143,7 +153,7 @@ std::string PropertyParser::parseType() {
     bool HasConst = Test(clang::tok::kw_const);
     bool HasVolatile = Test(clang::tok::kw_volatile);
 
-    bool MoveConstToFront = true;
+    bool NoTemplates = true;
 
     Test(clang::tok::kw_enum) || Test(clang::tok::kw_class) || Test(clang::tok::kw_struct);
 
@@ -175,30 +185,79 @@ std::string PropertyParser::parseType() {
     }
 
     if (Result.empty()) {
-        if (Test(clang::tok::coloncolon))
+        clang::CXXScopeSpec SS;
+        if (Test(clang::tok::coloncolon)) {
+            SS.MakeGlobal(Sema.getASTContext(), OriginalLocation());
             Result += Spelling();
-        do {
-            if (!Test(clang::tok::identifier))
-                return {}; // that's an error
+        } do {
+            if (!Test(clang::tok::identifier)) {
+                PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
+                                           PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                           "Invalid token while parsing Q_PROPERTY type"));
+                return {};
+            }
             Result += Spelling();
 
             if (Test(clang::tok::less)) {
-                MoveConstToFront = false; // the official moc do not do it
+                NoTemplates = false;
                 Result += "<";
                 Result += parseTemplateType();
 
-                if (!PrevToken.is(clang::tok::greater))
+                if (!PrevToken.is(clang::tok::greater)) {
+                    PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
+                                               PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                               "parse error in Q_PROPERTY type"));
                     return {}; //error;
+                }
             }
+
+            clang::Token IdentTok = PrevToken;
 
             if (!Test(clang::tok::coloncolon))
                 break;
 
+            if (NoTemplates) {
+                if (Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(RD), *IdentTok.getIdentifierInfo(),
+                    OriginalLocation(IdentTok.getLocation()), OriginalLocation(CurrentTok.getLastLoc()), {}, false, SS))
+                    SS.SetInvalid({OriginalLocation(IdentTok.getLocation()), OriginalLocation(CurrentTok.getLastLoc())});
+            }
+
             Result += Spelling();
         } while (true);
+
+        if (NoTemplates) {
+            if (SS.isNotEmpty() && SS.isValid())
+                Extra = llvm::dyn_cast_or_null<clang::CXXRecordDecl>(Sema.computeDeclContext(SS));
+
+            IsEnum = true;
+#if 0 // Moc don't do it.
+            clang::LookupResult Found(Sema, *PrevToken.getIdentifierInfo(), OriginalLocation(), clang::Sema::LookupNestedNameSpecifierName);
+            if (SS.isEmpty())
+                Sema.LookupQualifiedName(Found, RD);
+            else {
+                clang::DeclContext* DC = Sema.computeDeclContext(SS);
+                Sema.LookupQualifiedName(Found, DC ? DC : RD);
+            }
+
+            clang::EnumDecl* R = Found.getAsSingle<clang::EnumDecl>();
+            if (!R) {
+                if (clang::TypedefDecl *TD = Found.getAsSingle<clang::TypedefDecl>()) {
+                    const clang::TemplateSpecializationType* TDR = TD->getUnderlyingType()->getAs<clang::TemplateSpecializationType>();
+                    if(TDR && TDR->getNumArgs() == 1 && TDR->getTemplateName().getAsTemplateDecl()->getName() == "QFlags") {
+                        if (const clang::EnumType* ET = TDR->getArg(0).getAsType()->getAs<clang::EnumType>())
+                            R = ET->getDecl();
+                    }
+                }
+            }
+            if (R) {
+                IsEnum = true;
+            }
+#endif
+        }
     }
 
-    if (MoveConstToFront && Test(clang::tok::kw_const)) {
+    if (NoTemplates && Test(clang::tok::kw_const)) {
+        // The official moc don't move the const if there are templates
         HasConst = true;
     }
 
@@ -207,6 +266,8 @@ std::string PropertyParser::parseType() {
             || Test(clang::tok::amp)
             || Test(clang::tok::ampamp)
             || Test(clang::tok::kw_const)) {
+        Extra = nullptr;
+        IsEnum = false;
         Result += Spelling();
     }
 
@@ -238,6 +299,8 @@ PropertyDef PropertyParser::parse() {
         type = "qulonglong";
 
     Def.type = type;
+
+    Def.isEnum = IsEnum; // Well, that's what moc does.
 
 
     if (!Test(clang::tok::identifier)) {
