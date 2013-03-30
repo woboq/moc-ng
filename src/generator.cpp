@@ -83,7 +83,7 @@ void Generator::GenerateFunction(const T& V, const char* TypeName, MethodFlags T
 
         int argc =  M->getNumParams() - C;
 
-        OS << "    " << (M->getIdentifier() ? StrIdx(M->getName()) : StrIdx("")) << ", " << argc << ", " << ParamIndex << ", 0, 0x";
+        OS << "    " << StrIdx(M->getNameAsString()) << ", " << argc << ", " << ParamIndex << ", 0, 0x";
         OS.write_hex(Flags) << ",\n";
         ParamIndex += 1 + argc * 2;
     });
@@ -131,7 +131,7 @@ void Generator::GetTypeInfo(clang::QualType Type)
 
 
 template <typename T>
-void Generator::GenerateFunctionParameters(const T& V, const char* TypeName)
+void Generator::GenerateFunctionParameters(const std::vector< T* >& V, const char* TypeName)
 {
     if (V.empty())
         return;
@@ -143,7 +143,10 @@ void Generator::GenerateFunctionParameters(const T& V, const char* TypeName)
         OS << "   "; // only 3 ' ';
         //Types
         OS << " ";
-        GetTypeInfo(M->getResultType());
+        if (std::is_same<T, clang::CXXConstructorDecl>::value)
+            OS << "0x80000000 | " << StrIdx("");
+        else
+            GetTypeInfo(M->getResultType());
         OS <<  ",";
         for (int j = 0; j < argc; j++) {
             OS << " ";
@@ -255,7 +258,7 @@ void Generator::GenerateCode()
     GenerateProperties();
     GenerateEnums(EnumIndex);
 
-    GenerateFunction(CDef->Constructors, "constructors", MethodMethod, ParamsIndex);
+    GenerateFunction(CDef->Constructors, "constructors", MethodConstructor, ParamsIndex);
 
     OS << "\n    0    // eod\n};\n";
 

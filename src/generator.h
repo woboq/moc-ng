@@ -97,7 +97,7 @@ private:
     template <typename T>
     void GenerateFunction(const T &V, const char *TypeName, MethodFlags Type, int &ParamIndex);
     template <typename T>
-    void GenerateFunctionParameters(const T &V, const char *TypeName);
+    void GenerateFunctionParameters(const std::vector<T*> &V, const char *TypeName);
 
     void GenerateProperties();
     void GenerateMetaCall();
