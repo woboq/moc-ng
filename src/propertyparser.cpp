@@ -245,33 +245,35 @@ std::string PropertyParser::parseType(bool SupressDiagnostics) {
         } while (true);
 
         if (NoTemplates && !SupressDiagnostics) {
-            if (SS.isNotEmpty() && SS.isValid())
+
+            IsEnum = true; // That's how moc does it.
+
+            if (SS.isNotEmpty() && SS.isValid()) {
                 Extra = llvm::dyn_cast_or_null<clang::CXXRecordDecl>(Sema.computeDeclContext(SS));
 
-            IsEnum = true;
-#if 0 // Moc don't do it.
-            clang::LookupResult Found(Sema, *PrevToken.getIdentifierInfo(), OriginalLocation(), clang::Sema::LookupNestedNameSpecifierName);
-            if (SS.isEmpty())
-                Sema.LookupQualifiedName(Found, RD);
-            else {
+                clang::LookupResult Found(Sema, PrevToken.getIdentifierInfo(), OriginalLocation(),
+                                        clang::Sema::LookupNestedNameSpecifierName);
+                /*if (SS.isEmpty())
+                    Sema.LookupQualifiedName(Found, RD);
+                else {*/
                 clang::DeclContext* DC = Sema.computeDeclContext(SS);
                 Sema.LookupQualifiedName(Found, DC ? DC : RD);
-            }
-
-            clang::EnumDecl* R = Found.getAsSingle<clang::EnumDecl>();
-            if (!R) {
+                //}
+                clang::EnumDecl* R = Found.getAsSingle<clang::EnumDecl>();
+                /*if (!R) {
                 if (clang::TypedefDecl *TD = Found.getAsSingle<clang::TypedefDecl>()) {
                     const clang::TemplateSpecializationType* TDR = TD->getUnderlyingType()->getAs<clang::TemplateSpecializationType>();
                     if(TDR && TDR->getNumArgs() == 1 && TDR->getTemplateName().getAsTemplateDecl()->getName() == "QFlags") {
                         if (const clang::EnumType* ET = TDR->getArg(0).getAsType()->getAs<clang::EnumType>())
                             R = ET->getDecl();
                     }
-                }
+                }*/
+
+                /*if (!R)
+                    IsEnum = false;*/
+                if (R && MTS && MTS->count(R))
+                    Extra = nullptr;
             }
-            if (R) {
-                IsEnum = true;
-            }
-#endif
         }
     }
 

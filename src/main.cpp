@@ -15,6 +15,7 @@
 #include "llvm/Support/CommandLine.h"
 
 #include "clang/AST/DeclCXX.h"
+#include <clang/AST/DeclTemplate.h>
 
 
 #include <clang/Frontend/CompilerInstance.h>
@@ -23,6 +24,7 @@
 #include <iostream>
 #include <limits>
 #include <functional>
+#include <unordered_set>
 
 
 #include "mocng.h"
@@ -231,7 +233,9 @@ class MocASTConsumer : public clang::ASTConsumer
     clang::ASTContext *ctx = nullptr;
     MocPPCallbacks *PPCallbacks = nullptr;
 
+    std::unordered_set<const clang::TypeDecl *> registered_meta_types;
     std::vector<ClassDef> objects;
+
 
 
     static bool IsQtVirtual(const clang::CXXMethodDecl *MD) {
@@ -271,6 +275,16 @@ public:
         if (done) {
             PP.enableIncrementalProcessing(false);
             return true;
+        }
+
+        if (D.isSingleDecl()) {
+            clang::ClassTemplateSpecializationDecl* TD = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(D.getSingleDecl());
+            if (TD && TD->getIdentifier() && TD->getName() == "QMetaTypeId" && TD->getTemplateArgs().size() == 1) {
+                const clang::EnumType* ET = TD->getTemplateArgs().get(0).getAsType()->getAs<clang::EnumType>();
+                if (ET)
+                    registered_meta_types.insert(ET->getDecl());
+
+            }
         }
 
         if (!objects.size())
@@ -485,7 +499,7 @@ public:
 
         PPCallbacks->seenQ_OBJECT = {};*/
 
-        ClassDef Def = parseClass(RD, ci.getSema());
+        ClassDef Def = parseClass(RD, ci.getSema(), registered_meta_types);
         if (Def.HasQObject || Def.HasQGadget) {
             objects.push_back(std::move(Def));
             ci.getPreprocessor().enableIncrementalProcessing();

@@ -28,19 +28,22 @@ class PropertyParser {
 
     clang::CXXRecordDecl *RD;
 
+    const MetaTypeSet *MTS = nullptr;
+
     bool IsEnum = false;
 
 public:
 
     clang::CXXRecordDecl *Extra = nullptr;
 
-    PropertyParser(llvm::StringRef Text, clang::SourceLocation Loc, clang::Sema &Sema, clang::CXXRecordDecl *RD) :
+    PropertyParser(llvm::StringRef Text, clang::SourceLocation Loc, clang::Sema &Sema,
+                   clang::CXXRecordDecl *RD, const MetaTypeSet *MTS = nullptr) :
         Sema(Sema), PP(Sema.getPreprocessor()),
         Buf(llvm::MemoryBuffer::getMemBufferCopy(Text, "Q_PROPERTY")),
 //        Lexer(PP.getSourceManager().getSpellingLoc(Loc), PP.getLangOpts(), Text.begin(), Text.begin(), Text.end()),
         Lexer(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Loc),
               Buf, PP.getSourceManager(), PP.getLangOpts()),
-        BaseLoc(Loc), RD(RD)
+        BaseLoc(Loc), RD(RD), MTS(MTS)
     {  }
 
 private:

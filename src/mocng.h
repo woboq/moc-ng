@@ -11,6 +11,7 @@
 #include <vector>
 #include <iterator>
 #include <algorithm>
+#include <unordered_set>
 #include <clang/Basic/SourceLocation.h>
 
 namespace clang {
@@ -20,6 +21,7 @@ class CXXConstructorDecl;
 class EnumDecl;
 class Preprocessor;
 class Sema;
+class TypeDecl;
 }
 
 struct NotifyDef {
@@ -96,5 +98,6 @@ struct ClassDef {
 };
 
 
-
-ClassDef parseClass (clang::CXXRecordDecl* RD, clang::Sema& Sema);
+typedef std::unordered_set<const clang::TypeDecl*> MetaTypeSet;
+ClassDef parseClass (clang::CXXRecordDecl* RD, clang::Sema& Sema,
+                     const MetaTypeSet& registered_meta_type);

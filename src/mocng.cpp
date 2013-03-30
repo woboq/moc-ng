@@ -15,6 +15,7 @@
 #include <clang/Sema/Lookup.h>
 
 #include <iostream>
+#include <unordered_set>
 
 static clang::SourceLocation GetFromLiteral(clang::Token Tok, clang::StringLiteral *Lit, clang::Preprocessor &PP) {
     return Lit->getLocationOfByte(PP.getSourceManager().getFileOffset(Tok.getLocation()),
@@ -134,7 +135,7 @@ static std::pair<clang::StringLiteral*, clang::StringLiteral *> ExtractLiterals(
     return {Val1, Val2};
 }
 
-ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema) {
+ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema, const MetaTypeSet &registered_meta_type) {
     clang::Preprocessor &PP = Sema.getPreprocessor();
     ClassDef Def;
     Def.Record = RD;
@@ -151,7 +152,7 @@ ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema) {
                         PropertyParser Parser(Val->getString(),
     //                                          Val->getStrTokenLoc(0),
                                             Val->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
-                                            Sema, Def.Record);
+                                            Sema, Def.Record, &registered_meta_type);
                         Def.Properties.push_back(Parser.parse());
                         Def.addExtra(Parser.Extra);
                     } else {
