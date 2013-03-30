@@ -87,6 +87,7 @@ class MocPPCallbacks : public clang::PPCallbacks {
     clang::Preprocessor &PP;
     MocASTConsumer* Consumer;
 
+
     void InjectQObjectDefs(clang::SourceLocation Loc) {
         #include "qobjectdefs-injected.h"
         auto Buf = llvm::MemoryBuffer::getMemBuffer(Injected, "qobjectdefs-injected.moc");
@@ -95,6 +96,8 @@ class MocPPCallbacks : public clang::PPCallbacks {
     }
 
 public:
+
+    bool IsInMainFile = false;
 
     virtual bool FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl< char >& RecoveryPath) override
     {
@@ -131,7 +134,7 @@ public:
 
 #if  CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
     void MacroUndefined(const clang::Token& MacroNameTok, const clang::MacroDirective* MD) override {
-        const auto *MI = MD->getMacroInfo();
+//        const auto *MI = MD->getMacroInfo();
 #else
     virtual void MacroUndefined(const clang::Token& MacroNameTok, const clang::MacroInfo* MI) override {
 #endif
@@ -185,6 +188,11 @@ public:
 
     virtual void FileChanged(clang::SourceLocation Loc, FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType,
                              clang::FileID PrevFID) override {
+
+            clang::SourceManager &SM = PP.getSourceManager();
+            IsInMainFile = (SM.getFileID(SM.getFileLoc(Loc)) == SM.getMainFileID());
+
+
             if (Reason != ExitFile)
                 return;
             auto F = PP.getSourceManager().getFileEntryForID(PrevFID);
@@ -232,7 +240,6 @@ class MocASTConsumer : public clang::ASTConsumer
             || Name == "qt_static_metacall");
     }
 
-
 public:
     MocASTConsumer(clang::CompilerInstance &ci) :ci(ci)
     {
@@ -260,7 +267,6 @@ public:
     virtual bool HandleTopLevelDecl(clang::DeclGroupRef D) {
 
         auto &PP = ci.getPreprocessor();
-        //std::cout <<"hi "  << objects.size() << done  << " " << PP.isIncrementalProcessingEnabled() << " " << PP.isCodeCompletionEnabled() << std::endl;
 
         if (done) {
             PP.enableIncrementalProcessing(false);
@@ -270,12 +276,25 @@ public:
         if (!objects.size())
             return true;
 
+        if (!PPCallbacks->IsInMainFile)
+            return true;
 
-       // auto &PP = ci.getPreprocessor();
+
+        PP.getCurrentFileLexer();
 
         PP.EnableBacktrackAtThisPos();
         clang::Token Tok;
         PP.Lex(Tok);
+
+       /* std::cerr <<"HEEEEEEEEY: "  <<  D.isNull() << " " << D.isDeclGroup() << " " << D.isSingleDecl() << std::endl;
+        if (D.isSingleDecl())
+            D.getSingleDecl()->dump();
+        if (!Tok.isAnnotation())
+        PP.DumpToken(Tok,true);
+        else std::cerr << " ANOTATION!!! ";
+        std::cerr <<"  OK "  << std::endl;
+*/
+
         while(Tok.is(clang::tok::semi))
             PP.Lex(Tok);
 

@@ -2,6 +2,8 @@
 
 const char Injected[] = R"-(
 
+#ifdef Q_MOC_OUTPUT_REVISION
+
 #define QT_ANNOTATE_CLASS(type, anotation) \
     __extension__ _Static_assert(sizeof (#anotation), #type);
 #define QT_ANNOTATE_CLASS2(type, a1, a2) \
@@ -77,5 +79,7 @@ private: \
 
 #undef QT_MOC_COMPAT
 #define QT_MOC_COMPAT  __attribute__((annotate("qt_moc_compat")))
+
+#endif
 
 )-";
