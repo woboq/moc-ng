@@ -173,6 +173,21 @@ ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema) {
                         Def.Properties.push_back(std::move(P));
                         Def.addExtra(Parser.Extra);
                     }
+                } else if (key == "qt_private_slot") {
+                    clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
+                    std::tie(Val1, Val2) = ExtractLiterals(PE, PP, "Q_PRIVATE_SLOT",
+                                                           "Invalid Q_PRIVATE_SLOT annotation");
+                    if (Val1 && Val2) {
+                        PropertyParser Parser(Val2->getString(),
+                                              Val2->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
+                                              Sema, Def.Record);
+                        PrivateSlotDef P = Parser.parsePrivateSlot();
+                        P.InPrivateClass = Val1->getString();
+                        if (!P.Name.empty()) {
+                            Def.PrivateSlotCount += P.NumDefault + 1;
+                            Def.PrivateSlots.push_back(std::move(P));
+                        }
+                    }
                 } else if (key == "qt_enums")  {
                     parseEnums(Def, false, PE->getSubExpr(), Sema);
                 } else if (key == "qt_flags")  {

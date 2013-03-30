@@ -74,11 +74,13 @@ private:
         return (c=='_' || c=='$' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
     }
 
-    std::string LexemUntil(clang::tok::TokenKind Until);
+    std::string LexemUntil(clang::tok::TokenKind Until, bool Templ = false);
 public:
     std::string parseUnsigned();
     std::string parseTemplateType();
-    std::string parseType();
+    std::string parseType(bool SupressDiagnostics = true);
     PropertyDef parse();
+
+    PrivateSlotDef parsePrivateSlot();
 };
 

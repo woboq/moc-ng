@@ -8,8 +8,9 @@
 #include "propertyparser.h"
 #include <clang/Sema/Lookup.h>
 
-std::string PropertyParser::LexemUntil(clang::tok::TokenKind Until) {
+std::string PropertyParser::LexemUntil(clang::tok::TokenKind Until, bool Templ) {
     int ParensLevel = 0;
+    int BrLevel = 0;
     std::string Result;
     do {
         switch(+CurrentTok.getKind()) {
@@ -25,6 +26,18 @@ std::string PropertyParser::LexemUntil(clang::tok::TokenKind Until) {
         case clang::tok::r_brace:
             --ParensLevel;
             break;
+        case clang::tok::greater:
+            if (!ParensLevel)
+                BrLevel--;
+            break;
+        case clang::tok::less:
+            if (!ParensLevel && BrLevel >= 0)
+                BrLevel++;
+            break;
+        case clang::tok::greatergreater:
+            if (!ParensLevel)
+                BrLevel-=2;
+            break;
         }
 
         Consume();
@@ -33,7 +46,7 @@ std::string PropertyParser::LexemUntil(clang::tok::TokenKind Until) {
         if ((Last == '<' && Sp[0] == ':') || (IsIdentChar(Last) && IsIdentChar(Sp[0])))
             Result += " ";
         Result += Sp;
-    } while (ParensLevel > 0 || !PrevToken.is(Until));
+    } while ((ParensLevel != 0 || !PrevToken.is(Until) || (Templ && BrLevel > 0)) && ParensLevel >= 0);
     return Result;
 }
 
@@ -53,9 +66,11 @@ std::string PropertyParser::parseUnsigned() {
         else
             return "ulong";
         break;
-    case clang::tok::kw_short:
     case clang::tok::kw_char:
+    case clang::tok::kw_short:
         Consume();
+        if (Test(clang::tok::kw_int))
+            return "unsigned short int";
         return "unsigned " + Spelling();
         break;
     default:
@@ -148,7 +163,7 @@ std::string PropertyParser::parseTemplateType() {
     return Result;
 }
 
-std::string PropertyParser::parseType() {
+std::string PropertyParser::parseType(bool SupressDiagnostics) {
     std::string Result;
     bool HasConst = Test(clang::tok::kw_const);
     bool HasVolatile = Test(clang::tok::kw_volatile);
@@ -161,13 +176,17 @@ std::string PropertyParser::parseType() {
         Result += parseUnsigned();
     } else if (Test(clang::tok::kw_signed)) {
         Result += "signed";
-        switch(+CurrentTok.getKind()) {
-        case clang::tok::kw_int:
-        case clang::tok::kw_long:
-        case clang::tok::kw_short:
-        case clang::tok::kw_char:
-            Consume();
-            Result += " " + Spelling();
+        while (true) {
+            switch(+CurrentTok.getKind()) {
+            case clang::tok::kw_int:
+            case clang::tok::kw_long:
+            case clang::tok::kw_short:
+            case clang::tok::kw_char:
+                Consume();
+                Result += " " + Spelling();
+                continue;
+            }
+            break;
         }
     } else {
         while(Test(clang::tok::kw_int)
@@ -193,7 +212,7 @@ std::string PropertyParser::parseType() {
             if (!Test(clang::tok::identifier)) {
                 PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
                                            PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
-                                           "Invalid token while parsing Q_PROPERTY type"));
+                                           "Invalid token while parsing type"));
                 return {};
             }
             Result += Spelling();
@@ -206,7 +225,7 @@ std::string PropertyParser::parseType() {
                 if (!PrevToken.is(clang::tok::greater)) {
                     PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
                                                PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
-                                               "parse error in Q_PROPERTY type"));
+                                               "parse error in type"));
                     return {}; //error;
                 }
             }
@@ -216,16 +235,16 @@ std::string PropertyParser::parseType() {
             if (!Test(clang::tok::coloncolon))
                 break;
 
-            if (NoTemplates) {
+            if (NoTemplates && !SupressDiagnostics) {
                 if (Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(RD), *IdentTok.getIdentifierInfo(),
                     OriginalLocation(IdentTok.getLocation()), OriginalLocation(CurrentTok.getLastLoc()), {}, false, SS))
-                    SS.SetInvalid({OriginalLocation(IdentTok.getLocation()), OriginalLocation(CurrentTok.getLastLoc())});
+                        SS.SetInvalid({OriginalLocation(IdentTok.getLocation()), OriginalLocation(CurrentTok.getLastLoc())});
             }
 
             Result += Spelling();
         } while (true);
 
-        if (NoTemplates) {
+        if (NoTemplates && !SupressDiagnostics) {
             if (SS.isNotEmpty() && SS.isValid())
                 Extra = llvm::dyn_cast_or_null<clang::CXXRecordDecl>(Sema.computeDeclContext(SS));
 
@@ -282,7 +301,7 @@ std::string PropertyParser::parseType() {
 PropertyDef PropertyParser::parse() {
     PropertyDef Def;
     Consume();
-    std::string type = parseType();
+    std::string type = parseType(false);
     if (type.empty()) {
         //Error
         return Def;
@@ -304,7 +323,9 @@ PropertyDef PropertyParser::parse() {
 
 
     if (!Test(clang::tok::identifier)) {
-        //Error
+        PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
+                        PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                        "Expected identifier as Q_PROPERTY name"));
         return Def;
     }
 
@@ -385,9 +406,94 @@ PropertyDef PropertyParser::parse() {
         }
     }
     if (!CurrentTok.is(clang::tok::eof)) {
-        return Def; // Error;
+        PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
+                                   PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                   "Expected a Q_PROPERTY keyword"));
+        return Def;
     }
 
     return Def;
 }
 
+
+PrivateSlotDef PropertyParser::parsePrivateSlot()
+{
+    PrivateSlotDef Slot;
+    Consume();
+    Slot.ReturnType = parseType();
+
+    if (!Test(clang::tok::identifier)) {
+        PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
+                            PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                            "Expected slot name"));
+        return {};
+    }
+
+    Slot.Name = Spelling();
+
+    if (!Test(clang::tok::l_paren)) {
+        PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
+                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                    "Expected parenthesis in slot signature"));
+        return {};
+    }
+
+    do {
+        if (CurrentTok.is(clang::tok::eof)) {
+            PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
+                                       PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                       "Missing closing parenthesis"));
+            return Slot;
+        }
+        if (Test(clang::tok::r_paren)) {
+            break;
+        }
+        std::string T = parseType();
+        if (T.empty()) //Error;
+            return Slot;
+
+        Slot.Args.push_back(std::move(T));
+
+        Test(clang::tok::identifier);
+
+
+        if (Test(clang::tok::equal)) {
+            Slot.NumDefault++;
+            LexemUntil(clang::tok::comma, true);
+            if (PrevToken.is(clang::tok::r_paren))
+                break;
+            if (!PrevToken.is(clang::tok::comma)) {
+                PP.getDiagnostics().Report(OriginalLocation(),
+                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                    "Parse error in default argument"));
+                return Slot;
+            }
+            continue;
+        } else if (Slot.NumDefault) {
+            //FIXME: error;
+        }
+
+        if (Test(clang::tok::comma))
+            continue;
+
+        if (Test(clang::tok::r_paren)) {
+            break;
+        }
+
+        PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
+                                   PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                   "Expected comma in slot signature"));
+        return Slot;
+    } while (true);
+
+    Test(clang::tok::kw_const);
+    Test(clang::tok::kw_volatile);
+
+    if (!CurrentTok.is(clang::tok::eof)) {
+        PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
+                                   PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                   "Unexpected token"));
+    }
+
+    return Slot;
+}

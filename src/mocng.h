@@ -29,9 +29,17 @@ struct NotifyDef {
     int notifyId = -1;
 };
 
+struct PrivateSlotDef {
+    std::string ReturnType;
+    std::string Name;
+    std::vector<std::string> Args;
+    int NumDefault = 0;
+    std::string InPrivateClass;
+};
+
 struct PropertyDef {
     std::string name, type, member, read, write, reset, designable, scriptable, editable, stored,
-    user, inPrivateClass;
+                user, inPrivateClass;
     NotifyDef notify;
 
     bool constant = false;
@@ -50,6 +58,7 @@ struct ClassDef {
     // This list only includes the things registered with the keywords
     std::vector<clang::CXXMethodDecl*> Signals;
     std::vector<clang::CXXMethodDecl*> Slots;
+    std::vector<PrivateSlotDef> PrivateSlots;
     std::vector<clang::CXXMethodDecl*> Methods;
     std::vector<clang::CXXConstructorDecl*> Constructors;
     std::vector<std::tuple<clang::EnumDecl*, std::string, bool>> Enums;
@@ -80,6 +89,7 @@ struct ClassDef {
     bool HasQGadget = false;
 
     int NotifyCount = 0;
+    int PrivateSlotCount = 0;
 
     //TODO: PluginData;
     //TODO: FLagAliases;

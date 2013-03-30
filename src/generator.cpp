@@ -194,7 +194,7 @@ Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTCont
     if (CDef->Record->getNumBases())
         BaseName = CDef->Record->bases_begin()->getType().getAsString(PrintPolicy);
 
-    MethodCount = CountMethod(CDef->Signals) + CountMethod(CDef->Slots) + CountMethod(CDef->Methods);
+    MethodCount = CountMethod(CDef->Signals) + CountMethod(CDef->Slots) + CountMethod(CDef->Methods) + CDef->PrivateSlotCount;
 }
 
 void Generator::GenerateCode()
@@ -229,6 +229,8 @@ void Generator::GenerateCode()
     int ParamsIndex = Index;
     int TotalParameterCount = AggregatePerameterCount(CDef->Signals) + AggregatePerameterCount(CDef->Slots)
                             + AggregatePerameterCount(CDef->Methods) + AggregatePerameterCount(CDef->Constructors);
+    for (const PrivateSlotDef &P : CDef->PrivateSlots)
+        TotalParameterCount += 1 + P.Args.size() * (1 + P.NumDefault) - (P.NumDefault * (P.NumDefault + 1) / 2);
     Index += TotalParameterCount * 2 // type and parameter names
            - MethodCount - CountMethod(CDef->Constructors);  // return parameter don't have names
 
@@ -261,6 +263,16 @@ void Generator::GenerateCode()
 
     GenerateFunction(CDef->Signals, "signals", MethodSignal, ParamsIndex);
     GenerateFunction(CDef->Slots, "slots", MethodSlot, ParamsIndex);
+    for (const PrivateSlotDef &P : CDef->PrivateSlots) {
+        for (int C = 0; C <= P.NumDefault; ++C) {
+            int argc = (P.Args.size() - C);
+            OS << "    " << StrIdx(P.Name) << ", " << argc << ", " << ParamsIndex << ", 0, 0x";
+            unsigned int Flag = AccessPrivate | MethodSlot;
+            if (C) Flag |= MethodCloned;
+            OS.write_hex(Flag) << ",\n";
+            ParamsIndex += 1 + argc * 2;
+        }
+    }
     GenerateFunction(CDef->Methods, "methods", MethodMethod, ParamsIndex);
 
 
@@ -269,6 +281,24 @@ void Generator::GenerateCode()
 
     GenerateFunctionParameters(CDef->Signals, "signals");
     GenerateFunctionParameters(CDef->Slots, "slots");
+    for (const PrivateSlotDef &P : CDef->PrivateSlots) {
+        for (int C = 0; C <= P.NumDefault; ++C) {
+            int argc = (P.Args.size() - C);
+            OS << "    ";
+            if (P.ReturnType == "void") OS << "QMetaType::Void";
+            else OS << "0x80000000 | " << StrIdx(P.ReturnType);
+            for (int j = 0; j < argc; j++) {
+                OS << ", ";
+                if (P.Args[j] == "void") OS << "QMetaType::Void";
+                else OS << "0x80000000 | " << StrIdx(P.Args[j]);
+            }
+            //Names
+            for (int j = 0; j < argc; j++) {
+                    OS << " " << StrIdx("") << ",";
+            }
+            OS << ",\n";
+        }
+    }
     GenerateFunctionParameters(CDef->Methods, "methods");
     GenerateFunctionParameters(CDef->Constructors, "constructors");
 
@@ -575,7 +605,26 @@ void Generator::GenerateStaticMetaCall()
         };
         ForEachMethod(CDef->Signals, GenM);
         ForEachMethod(CDef->Slots, GenM);
-        // TODO: private slots
+        for (const PrivateSlotDef &P : CDef->PrivateSlots) {
+            for (int C = 0; C <= P.NumDefault; ++C) {
+                OS << "        case " << MethodIndex << ": ";
+                // Original moc don't support reference as return type: see  Moc::parseFunction
+                bool IsVoid = P.ReturnType == "void" || P.ReturnType.empty() || P.ReturnType.back() == '&';
+                if (!IsVoid)
+                    OS << "{ " << P.ReturnType << " _r =  ";
+                OS << "_t->" << P.InPrivateClass << "->" << P.Name << "(";
+                for (int j = 0 ; j < P.Args.size() - C; ++j) {
+                    if (j) OS << ",";
+                    OS << "*reinterpret_cast< " << P.Args[j] << " *>(_a[" << (j+1) << "])";
+                }
+                OS << ");";
+                if (!IsVoid) {
+                    OS << "\n            if (_a[0]) *reinterpret_cast< " << P.ReturnType << " *>(_a[0]) = _r; }";
+                }
+                OS <<  " break;\n";
+                MethodIndex++;
+            }
+        }
         ForEachMethod(CDef->Methods, GenM);
         OS << "        }\n"
               "    }";
