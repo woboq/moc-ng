@@ -228,6 +228,8 @@ ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema, const MetaType
             //            for (int i = 0; i < Clones; ++i)
                             Def.Methods.push_back(M);
                     }
+                } else if (A->getAnnotation().startswith("qt_revision:")) {
+                    Def.RevisionMethodCount++;
                 }
             }
         }
@@ -260,6 +262,8 @@ ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema, const MetaType
             }
         }
 
+        if (P.revision > 0)
+            Def.RevisionPropertyCount++;
     }
 
 

@@ -92,7 +92,8 @@ struct ClassDef {
 
     int NotifyCount = 0;
     int PrivateSlotCount = 0;
-
+    int RevisionPropertyCount = 0;
+    int RevisionMethodCount = 0;
     //TODO: PluginData;
     //TODO: FLagAliases;
 };

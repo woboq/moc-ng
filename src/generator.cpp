@@ -236,7 +236,8 @@ void Generator::GenerateCode()
 
     OS << "    " << MethodCount << ", " << I(MethodCount * 5) << ", // methods \n";
 
-     // TODO: REVISON   Index += NumberRevisionedMethod
+    if (CDef->RevisionMethodCount)
+        Index += MethodCount;
 
     int ParamsIndex = Index;
     int TotalParameterCount = AggregatePerameterCount(CDef->Signals) + AggregatePerameterCount(CDef->Slots)
@@ -248,9 +249,10 @@ void Generator::GenerateCode()
 
     OS << "    " << CDef->Properties.size() << ", " << I(CDef->Properties.size() * 3) << ", // properties \n";
 
-    Index += CDef->NotifyCount;
-    // TODO: REVISON +    Index +=  +  Number Revision
-
+    if (CDef->NotifyCount)
+        Index += CDef->Properties.size();
+    if (CDef->RevisionPropertyCount)
+        Index += CDef->Properties.size();
 
     OS << "    " << CDef->Enums.size() << ", " << I(CDef->Enums.size() * 4) << ", // enums \n";
     int EnumIndex = Index;
@@ -287,8 +289,33 @@ void Generator::GenerateCode()
     }
     GenerateFunction(CDef->Methods, "methods", MethodMethod, ParamsIndex);
 
+    if (CDef->RevisionMethodCount) {
+        auto GenerateRevision = [&](const clang::CXXMethodDecl *M, int C) {
+            llvm::StringRef SubStr = "0";
+            for (auto attr_it = M->specific_attr_begin<clang::AnnotateAttr>();
+                    attr_it != M->specific_attr_end<clang::AnnotateAttr>();
+                    ++attr_it) {
+                const clang::AnnotateAttr *A = *attr_it;
+                if (A->getAnnotation().startswith("qt_revision:")) {
+                    SubStr = A->getAnnotation().substr(sizeof("qt_revision:")-1);
+                }
+            }
+            OS << " " << SubStr << ",";
+        };
+        OS << "\n // method revisions\n    ";
+        ForEachMethod(CDef->Signals, GenerateRevision);
+        OS << "\n    ";
+        ForEachMethod(CDef->Slots, GenerateRevision);
+        //OS << "\n    ";
+        for (const PrivateSlotDef &P : CDef->PrivateSlots) {
+            for (int C = 0; C <= P.NumDefault; ++C)
+                OS << " 0,    ";
+        }
+        OS << "\n    ";
+        ForEachMethod(CDef->Methods, GenerateRevision);
+        OS << "\n";
+    }
 
-    // TODO: revisions
 
 
     GenerateFunctionParameters(CDef->Signals, "signals");
@@ -806,6 +833,9 @@ void Generator::GenerateProperties()
 {
     if (CDef->Properties.empty())
         return;
+
+    OS << "\n // properties: name, type, flags\n";
+
     for (const PropertyDef &p : CDef->Properties) {
         unsigned int flags = Invalid;
         if (p.isEnum)
@@ -860,8 +890,14 @@ void Generator::GenerateProperties()
          }
      }
 
+     if(CDef->RevisionPropertyCount) {
+         OS << "\n // properties: revision\n";
+         for (const PropertyDef &P : CDef->Properties) {
+             OS << "    " << P.revision << ",\n";
+         }
+     }
 
-    //TODO:  + REVISION
+
 }
 
 void Generator::GenerateEnums(int EnumIndex)
