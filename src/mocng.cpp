@@ -113,6 +113,27 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
 
 }
 
+static std::pair<clang::StringLiteral*, clang::StringLiteral *> ExtractLiterals(clang::ParenExpr *PE,
+                                                                                const clang::Preprocessor &PP,
+                                                                                const char *Keyword,
+                                                                                const char *Error) {
+    clang::BinaryOperator* BO = llvm::dyn_cast<clang::BinaryOperator>(PE->getSubExpr());
+    clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
+    if (!BO) {
+        PP.getDiagnostics().Report(PE->getExprLoc(),
+                                   PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                    "Invalid %0 annotation")) << Keyword;
+    } else {
+        if (!(Val1 = llvm::dyn_cast<clang::StringLiteral>(BO->getLHS())))
+            PP.getDiagnostics().Report(BO->getLHS()->getExprLoc(),
+                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error, Error));
+            if (!(Val2 = llvm::dyn_cast<clang::StringLiteral>(BO->getRHS())))
+                PP.getDiagnostics().Report(BO->getRHS()->getExprLoc(),
+                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error, Error));
+    }
+    return {Val1, Val2};
+}
+
 ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema) {
     clang::Preprocessor &PP = Sema.getPreprocessor();
     ClassDef Def;
@@ -138,6 +159,20 @@ ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema) {
                                                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
                                                    "Invalid Q_PROPERTY annotation"));
                     }
+                } else if (key == "qt_private_property") {
+                    clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
+                    std::tie(Val1, Val2) = ExtractLiterals(PE, PP, "Q_PRIVATE_PROPERTY",
+                                                           "Invalid Q_PRIVATE_PROPERTY annotation");
+
+                    if (Val1 && Val2) {
+                        PropertyParser Parser(Val2->getString(),
+                                              Val2->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
+                                              Sema, Def.Record);
+                        PropertyDef P = Parser.parse();
+                        P.inPrivateClass = Val1->getString();
+                        Def.Properties.push_back(std::move(P));
+                        Def.addExtra(Parser.Extra);
+                    }
                 } else if (key == "qt_enums")  {
                     parseEnums(Def, false, PE->getSubExpr(), Sema);
                 } else if (key == "qt_flags")  {
@@ -147,22 +182,10 @@ ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema) {
                 } else if (key == "qt_qgadget") {
                     Def.HasQGadget = true;
                 } else if (key == "qt_classinfo") {
-                    clang::BinaryOperator* BO = llvm::dyn_cast<clang::BinaryOperator>(PE->getSubExpr());
                     clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
-                    if (!BO) {
-                        PP.getDiagnostics().Report(S->getLocation(),
-                                                   PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
-                                                   "Invalid Q_CLASSINFO annotation"));
-                    } else {
-                        if (!(Val1 = llvm::dyn_cast<clang::StringLiteral>(BO->getLHS())))
-                            PP.getDiagnostics().Report(BO->getLHS()->getExprLoc(),
-                                                       PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
-                                                       "Expected string literal in Q_CLASSINFO"));
-                        if (!(Val2 = llvm::dyn_cast<clang::StringLiteral>(BO->getRHS())))
-                            PP.getDiagnostics().Report(BO->getRHS()->getExprLoc(),
-                                                        PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
-                                                        "Expected string literal in Q_CLASSINFO"));
-                    }
+                    std::tie(Val1, Val2) = ExtractLiterals(PE, PP, "Q_CLASSINFO",
+                                                           "Expected string literal in Q_CLASSINFO");
+
                     if (Val1 && Val2) {
                         Def.ClassInfo.emplace_back(Val1->getString(), Val2->getString());
                     }
