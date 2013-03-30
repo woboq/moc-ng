@@ -254,6 +254,7 @@ public:
 //        MocASTVisitor v();
 //        v.TraverseDecl(Ctx.getTranslationUnitDecl());
 
+
     bool done = false;
     virtual bool HandleTopLevelDecl(clang::DeclGroupRef D) {
 
@@ -463,7 +464,7 @@ public:
 
         PPCallbacks->seenQ_OBJECT = {};*/
 
-        ClassDef Def = parseClass(RD, ci.getPreprocessor());
+        ClassDef Def = parseClass(RD, ci.getSema());
         if (Def.HasQObject || Def.HasQGadget) {
             objects.push_back(std::move(Def));
             ci.getPreprocessor().enableIncrementalProcessing();

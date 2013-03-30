@@ -105,4 +105,5 @@ private:
     void GenerateSignal(const clang::CXXMethodDecl *MD, int Idx);
 
     void GetTypeInfo(clang::QualType Type);
+    void GenerateEnums(int EnumIndex);
 };

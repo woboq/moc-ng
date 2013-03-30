@@ -16,6 +16,7 @@ class CXXRecordDecl;
 class CXXConstructorDecl;
 class EnumDecl;
 class Preprocessor;
+class Sema;
 }
 
 
@@ -59,4 +60,4 @@ struct ClassDef {
 
 
 
-ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Preprocessor &PP);
+ClassDef parseClass (clang::CXXRecordDecl* RD, clang::Sema& Sema);

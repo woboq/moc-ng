@@ -4,14 +4,94 @@
  * http://woboq.com/
  ****************************************************************************/
 
-
 #include "mocng.h"
 #include "propertyparser.h"
 
 #include <clang/Lex/Preprocessor.h>
 #include <clang/AST/DeclCXX.h>
+#include <clang/Sema/Sema.h>
+#include <clang/Sema/Lookup.h>
 
-ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Preprocessor &PP) {
+#include <iostream>
+
+static clang::SourceLocation GetFromLiteral(clang::Token Tok, clang::StringLiteral *Lit, clang::Preprocessor &PP) {
+    return Lit->getLocationOfByte(PP.getSourceManager().getFileOffset(Tok.getLocation()),
+                           PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo());
+}
+
+
+static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::Sema &Sema) {
+    clang::Preprocessor &PP = Sema.getPreprocessor();
+    clang::StringLiteral *Val = llvm::dyn_cast<clang::StringLiteral>(Content);
+    if (!Val) {
+        PP.getDiagnostics().Report(Content->getExprLoc(),
+                                   PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                   "Invalid Q_ENUMS annotation"));
+        return;
+    }
+
+    llvm::MemoryBuffer* Buf = llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_PROPERTY");
+    clang::Lexer Lex(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Content->getExprLoc()),
+                     Buf, PP.getSourceManager(), PP.getLangOpts());
+
+    clang::CXXScopeSpec SS;
+    clang::Token Tok, Next;
+    Lex.LexFromRawLexer(Tok);
+    for (; !Tok.is(clang::tok::eof); Tok = Next) {
+        Lex.LexFromRawLexer(Next);
+        clang::IdentifierInfo* II = nullptr;
+        if (Tok.is(clang::tok::raw_identifier))
+            II = PP.LookUpIdentifierInfo(Tok);
+
+
+        if (Tok.is(clang::tok::identifier)) {
+
+            if (Next.is(clang::tok::coloncolon)) {
+                if (!Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(Def.Record), *II,
+                        GetFromLiteral(Tok, Val, PP), GetFromLiteral(Next, Val, PP), {}, false, SS))
+                    SS.SetInvalid({GetFromLiteral(Tok, Val, PP), GetFromLiteral(Next, Val, PP)});
+                Lex.LexFromRawLexer(Next);
+                continue;
+            }
+
+            clang::LookupResult Found(Sema, II, GetFromLiteral(Tok, Val, PP), clang::Sema::LookupNestedNameSpecifierName);
+            if (SS.isEmpty())
+                Sema.LookupQualifiedName(Found, Def.Record);
+            else {
+                clang::DeclContext* DC = Sema.computeDeclContext(SS);
+                Sema.LookupQualifiedName(Found, DC ? DC : Def.Record);
+            }
+
+            clang::EnumDecl* R = Found.getAsSingle<clang::EnumDecl>();
+            if (Found.empty() || !R) {
+                // TODO: typo correction
+
+                // This should be an error, but the official moc do not understand that as an error.
+                PP.getDiagnostics().Report(GetFromLiteral(Tok, Val, PP),
+                                           PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
+                                            "no enum names %0")) << Found.getLookupName();
+                break;
+            }
+            Def.Enums.emplace_back(R, isFlag);
+            continue;
+        } else if (Tok.is(clang::tok::coloncolon)) {
+            if (SS.isEmpty()) {
+                SS.MakeGlobal(Sema.getASTContext(), GetFromLiteral(Tok, Val, PP));
+                continue;
+            }
+        }
+
+        PP.getDiagnostics().Report(GetFromLiteral(Tok, Val, PP),
+                                       PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                       "Invalid token in Q_ENUMS"));
+        break;
+    }
+
+
+}
+
+ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema) {
+    clang::Preprocessor &PP = Sema.getPreprocessor();
     ClassDef Def;
     Def.Record = RD;
 
@@ -34,6 +114,10 @@ ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Preprocessor &PP) {
                                                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
                                                    "Invalid Q_PROPERTY annotation"));
                     }
+                } else if (key == "qt_enums")  {
+                    parseEnums(Def, false, PE->getSubExpr(), Sema);
+                } else if (key == "qt_flags")  {
+                    parseEnums(Def, true, PE->getSubExpr(), Sema);
                 } else if (key == "qt_qobject") {
                     Def.HasQObject = true;
                 } else if (key == "qt_qgadget") {

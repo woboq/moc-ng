@@ -218,9 +218,11 @@ void Generator::GenerateCode()
     // TODO: REVISON + NOTIDY   Index += Number Notify +  Number Revision
 
 
+    int EnumIndex = Index;
     OS << "    " << CDef->Enums.size() << ", " << I(CDef->Enums.size() * 4) << ", // enums \n";
-
-    // TODO: enum values
+    for (auto e : CDef->Enums)
+        for (auto it = e.first->enumerator_begin() ; it != e.first->enumerator_end(); ++it)
+            Index += 2;
 
     int ConstructorCount = CountMethod(CDef->Constructors);
     OS << "    " << ConstructorCount << ", " << I(ConstructorCount * 5) << ", // constructors \n";
@@ -251,9 +253,7 @@ void Generator::GenerateCode()
     GenerateFunctionParameters(CDef->Constructors, "constructors");
 
     GenerateProperties();
-
-
-    //TODO: enums
+    GenerateEnums(EnumIndex);
 
     GenerateFunction(CDef->Constructors, "constructors", MethodMethod, ParamsIndex);
 
@@ -697,7 +697,32 @@ void Generator::GenerateProperties()
     //TODO: NOTIFY + REVISION
 }
 
+void Generator::GenerateEnums(int EnumIndex)
+{
+    if (CDef->Enums.empty())
+        return;
 
+    OS << "\n  // enums: name, flags, count, data\n";
+
+    for (auto e : CDef->Enums) {
+        int Count = 0;
+        for (auto it = e.first->enumerator_begin() ; it != e.first->enumerator_end(); ++it)
+            Count++;
+        OS << "    " << StrIdx(e.first->getName()) << ", " << e.second << ", " << Count << ", " << EnumIndex << ",\n";
+        EnumIndex += Count*2;
+    }
+
+    OS << "\n  // enums data: key, valus\n";
+    for (auto e : CDef->Enums) {
+        for (auto it = e.first->enumerator_begin() ; it != e.first->enumerator_end(); ++it) {
+            clang::EnumConstantDecl *E = *it;
+            OS << "    " << StrIdx(E->getName()) << ", uint(" << QualName << "::";
+            if (e.first->isScoped())
+                OS << e.first->getName() << "::";
+            OS << E->getName() <<"),\n";
+        }
+    }
+}
 
 int Generator::StrIdx(llvm::StringRef Str)
 {
