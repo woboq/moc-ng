@@ -12,6 +12,8 @@
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/ASTContext.h>
 
+#include <iostream>
+
 
 //  foreach method,  including  clones
 template<typename T, typename F>
@@ -126,6 +128,19 @@ void Generator::GetTypeInfo(clang::QualType Type)
         TypeString[k++] = C;
     }
     TypeString.resize(k);
+
+    //adjust unsigned
+    int UPos = 0;
+    while ((UPos = TypeString.find("unsigned ", UPos)) < TypeString.size()) {
+        const int L = sizeof("unsigned ") - 1; // don't include \0
+        llvm::StringRef R(&TypeString[UPos + L],
+                          TypeString.size() - L);
+        if (R.startswith("int") || (R.startswith("long") &&
+            !R.startswith("long int") && !R.startswith("long long"))) {
+            TypeString.replace(UPos, L, "u");
+        }
+        UPos++;
+    }
     OS << "0x80000000 | " << StrIdx(TypeString);
 }
 

@@ -51,7 +51,7 @@ std::string PropertyParser::parseUnsigned() {
         else if (Test(clang::tok::kw_long))
             return "unsigned long long";
         else
-            return "uint";
+            return "ulong";
         break;
     case clang::tok::kw_short:
     case clang::tok::kw_char:
