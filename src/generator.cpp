@@ -218,10 +218,10 @@ void Generator::GenerateCode()
     // TODO: REVISON + NOTIDY   Index += Number Notify +  Number Revision
 
 
-    int EnumIndex = Index;
     OS << "    " << CDef->Enums.size() << ", " << I(CDef->Enums.size() * 4) << ", // enums \n";
+    int EnumIndex = Index;
     for (auto e : CDef->Enums)
-        for (auto it = e.first->enumerator_begin() ; it != e.first->enumerator_end(); ++it)
+        for (auto it = std::get<0>(e)->enumerator_begin() ; it != std::get<0>(e)->enumerator_end(); ++it)
             Index += 2;
 
     int ConstructorCount = CountMethod(CDef->Constructors);
@@ -714,19 +714,19 @@ void Generator::GenerateEnums(int EnumIndex)
 
     for (auto e : CDef->Enums) {
         int Count = 0;
-        for (auto it = e.first->enumerator_begin() ; it != e.first->enumerator_end(); ++it)
+        for (auto it = std::get<0>(e)->enumerator_begin() ; it != std::get<0>(e)->enumerator_end(); ++it)
             Count++;
-        OS << "    " << StrIdx(e.first->getName()) << ", " << e.second << ", " << Count << ", " << EnumIndex << ",\n";
+        OS << "    " << StrIdx(std::get<1>(e)) << ", " << std::get<2>(e) << ", " << Count << ", " << EnumIndex << ",\n";
         EnumIndex += Count*2;
     }
 
     OS << "\n  // enums data: key, valus\n";
     for (auto e : CDef->Enums) {
-        for (auto it = e.first->enumerator_begin() ; it != e.first->enumerator_end(); ++it) {
+        for (auto it = std::get<0>(e)->enumerator_begin() ; it != std::get<0>(e)->enumerator_end(); ++it) {
             clang::EnumConstantDecl *E = *it;
             OS << "    " << StrIdx(E->getName()) << ", uint(" << QualName << "::";
-            if (e.first->isScoped())
-                OS << e.first->getName() << "::";
+            if (std::get<0>(e)->isScoped())
+                OS << std::get<0>(e)->getName() << "::";
             OS << E->getName() <<"),\n";
         }
     }
