@@ -645,8 +645,45 @@ void Generator::GenerateStaticMetaCall()
             }
         }
         ForEachMethod(CDef->Methods, GenM);
+
         OS << "        }\n"
-              "    }";
+              "    } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {\n"
+              "        switch ((_id << 16) | *reinterpret_cast<int*>(_a[1])) {\n"
+              "        default: *reinterpret_cast<int*>(_a[0]) = -1; break;\n";
+
+
+        auto RegisterT = [&](const clang::QualType T, unsigned int Idx) {
+            const clang::CXXRecordDecl* RD = T->getPointeeCXXRecordDecl();
+            if (T->isVoidType() || (!T.isConstQualified() && T->isReferenceType())
+                || (RD && !RD->hasDefinition())) {
+                return;
+            }
+            OS << "       case 0x";
+            OS.write_hex(Idx);
+            OS << ": *reinterpret_cast<int*>(_a[0]) = ";
+            OS <<  "QtPrivate::QMetaTypeIdHelper< " << T.getNonReferenceType().getUnqualifiedType().getAsString(PrintPolicy)
+                << " >::qt_metatype_id(); break;\n";
+        };
+
+
+        MethodIndex = 0;
+        auto RegisterM = [&](const clang::CXXMethodDecl *MD, int C) {
+            if (!MD->getIdentifier())
+                return;
+          //  RegisterT(MD->getResultType(), (MethodIndex << 16));
+            int argc = MD->getNumParams() - C - (HasPrivateSignal(MD)?1:0);
+            for (int j = 0 ; j < argc ; ++j)
+                RegisterT(MD->getParamDecl(j)->getType(), (MethodIndex << 16) | j);
+            MethodIndex++;
+        };
+
+        ForEachMethod(CDef->Signals, RegisterM);
+        ForEachMethod(CDef->Slots, RegisterM);
+        MethodIndex += CDef->PrivateSlotCount; //Or should we?
+        ForEachMethod(CDef->Methods, RegisterM);
+
+        OS << "        }\n    }";
+
     }
     if (!CDef->Signals.empty()) {
 
