@@ -561,6 +561,7 @@ void Generator::GenerateMetaCall()
 void Generator::GenerateStaticMetaCall()
 {
     OS << "\nvoid " << QualName << "::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)\n{\n    ";
+    bool NeedElse = false;
 
     if (!CDef->Constructors.empty()) {
         OS << "    if (_c == QMetaObject::CreateInstance) {\n"
@@ -582,10 +583,12 @@ void Generator::GenerateStaticMetaCall()
         OS << "        }\n"
               "    }";
 
-        if (MethodCount)  OS << " else ";
+        NeedElse = true;
     }
 
     if (MethodCount) {
+        if(NeedElse) OS << " else ";
+        NeedElse = true;
         OS << "if (_c == QMetaObject::InvokeMetaMethod) {\n"
 //            "        Q_ASSERT(staticMetaObject.cast(_o));\n"
               "        " << QualName <<" *_t = static_cast<" << QualName << " *>(_o);\n"
@@ -674,7 +677,23 @@ void Generator::GenerateStaticMetaCall()
         OS << "    }";
     }
 
-    //TODO RegisterPropertyMetaType
+    if (!CDef->Properties.empty()) {
+        if(NeedElse) OS << " else ";
+        NeedElse = true;
+
+        OS << "if (_c == QMetaObject::RegisterPropertyMetaType) {\n"
+              "        switch (_id) {\n"
+              "        default: *reinterpret_cast<int*>(_a[0]) = -1; break;\n";
+
+        //FIXME: optimize (group same properties, and don't generate for builtin
+        int Idx = 0;
+        for (const PropertyDef &P: CDef->Properties) {
+            OS << "        case " << (Idx++) << ": *reinterpret_cast<int*>(_a[0]) = QtPrivate::QMetaTypeIdHelper<"
+               << P.type << " >::qt_metatype_id(); break;\n";
+        }
+        OS << "        }\n";
+        OS << "    }\n";
+    }
 
 #if 0
         if (methodList.empty()) {
