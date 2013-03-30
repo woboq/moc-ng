@@ -11,6 +11,7 @@
 #include <type_traits>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/ASTContext.h>
+#include <clang/Sema/Sema.h>
 
 #include <iostream>
 

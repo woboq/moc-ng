@@ -90,7 +90,8 @@ class MocPPCallbacks : public clang::PPCallbacks {
     void InjectQObjectDefs(clang::SourceLocation Loc) {
         #include "qobjectdefs-injected.h"
         auto Buf = llvm::MemoryBuffer::getMemBuffer(Injected, "qobjectdefs-injected.moc");
-        PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf), nullptr, Loc);
+        Loc = PP.getSourceManager().getFileLoc(Loc);
+        PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Loc), nullptr, Loc);
     }
 
 public:
@@ -286,7 +287,8 @@ public:
                 std::cout << code << std::endl;
                 objects.clear();
                 auto Buf = llvm::MemoryBuffer::getMemBufferCopy( code, "qt_moc");
-                PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf), nullptr, {});
+                clang::SourceLocation Loc = PP.getSourceManager().getFileLoc(D.getSingleDecl()->getLocEnd());
+                PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Loc), nullptr, Loc);
             } else {
                 ci.getPreprocessor().enableIncrementalProcessing(false);
                 PP.Backtrack();
