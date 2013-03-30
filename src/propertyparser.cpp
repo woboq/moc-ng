@@ -337,6 +337,7 @@ PropertyDef PropertyParser::parse() {
         }
 
         std::string v, v2;
+        clang::SourceLocation ParamLoc = OriginalLocation(CurrentTok.getLocation());
         if (CurrentTok.getKind() == clang::tok::l_paren) {
             v = LexemUntil(clang::tok::r_paren);
         } else if (Test(clang::tok::identifier)) {
@@ -371,9 +372,10 @@ PropertyDef PropertyParser::parse() {
             Def.designable = v + v2;
         else if (l == "EDITABLE")
             Def.editable = v + v2;
-        else if (l == "NOTIFY")
-            Def.notify = v;
-        else if (l == "USER")
+        else if (l == "NOTIFY") {
+            Def.notify.Str = v;
+            Def.notify.Loc =  ParamLoc;
+        } else if (l == "USER")
             Def.user = v + v2;
         else {
             PP.getDiagnostics().Report(OriginalLocation(KeywordLocation),
@@ -385,7 +387,7 @@ PropertyDef PropertyParser::parse() {
     if (!CurrentTok.is(clang::tok::eof)) {
         return Def; // Error;
     }
+
     return Def;
 }
-
 

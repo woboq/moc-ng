@@ -75,7 +75,6 @@ private:
     }
 
     std::string LexemUntil(clang::tok::TokenKind Until);
-
 public:
     std::string parseUnsigned();
     std::string parseTemplateType();

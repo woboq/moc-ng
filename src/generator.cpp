@@ -234,7 +234,8 @@ void Generator::GenerateCode()
 
     OS << "    " << CDef->Properties.size() << ", " << I(CDef->Properties.size() * 3) << ", // properties \n";
 
-    // TODO: REVISON + NOTIDY   Index += Number Notify +  Number Revision
+    Index += CDef->NotifyCount;
+    // TODO: REVISON +    Index +=  +  Number Revision
 
 
     OS << "    " << CDef->Enums.size() << ", " << I(CDef->Enums.size() * 4) << ", // enums \n";
@@ -448,21 +449,28 @@ void Generator::GenerateMetaCall()
         HandleProperty(needSet, "WriteProperty", [&](const PropertyDef &p) {
             if (p.constant)
                 return;
-            if (p.write.empty() && p.member.empty())
-                return;
-
-            if (p.inPrivateClass.size())
-                OS << p.inPrivateClass << "->" ;
-            if (!p.write.empty())
-                OS << p.write << "(";
-            else
-                OS << p.member << " =  ";
-            OS << "*reinterpret_cast< " << p.type << "*>(_a[0])";
-
-            if (!p.write.empty())
-                OS << "); ";
-            else
-                OS << "; "; //FIXME: Notify signal
+            if (!p.write.empty()) {
+                if (p.inPrivateClass.size())
+                    OS << p.inPrivateClass << "->" ;
+                OS << p.write << "(*reinterpret_cast< " << p.type << "*>(_a[0])); ";
+            } else if (!p.member.empty()) {
+                std::string M = p.member;
+                std::string A = "*reinterpret_cast< " + p.type + "*>(_a[0])";
+                if (p.inPrivateClass.size())
+                    M = p.inPrivateClass + "->" + M;
+                if (p.notify.notifyId >= 0) {
+                    OS << "\n"
+                          "            if (" << M << " != " << A << ") {\n"
+                          "                " << M << " = " << A << ";\n"
+                          "                emit " << p.notify.Str << "(";
+                    if (p.notify.MD->getMinRequiredArguments() > 0)
+                        OS << M;
+                    OS << ");\n"
+                          "            } ";
+                } else {
+                    OS << M << " = " << A << "; ";
+                }
+            }
         });
         OS << " else ";
         HandleProperty(needReset, "ResetProperty", [&](const PropertyDef &p) {
@@ -710,7 +718,7 @@ void Generator::GenerateProperties()
             flags |= ResolveUser;
         else if (p.user != "false")
             flags |= User;
-        if (p.notifyId != -1)
+        if (p.notify.notifyId != -1)
             flags |= Notify;
         if (p.revision > 0)
             flags |= Revisioned;
@@ -721,7 +729,16 @@ void Generator::GenerateProperties()
         OS << "    " << StrIdx(p.name) << ", 0x80000000 | " << StrIdx(p.type) << ", 0x";
         OS.write_hex(flags) << ", // " << p.name << "\n";
     }
-    //TODO: NOTIFY + REVISION
+
+    if(CDef->NotifyCount) {
+         OS << "\n // properties: notify_signal_id\n";
+         for (const PropertyDef &P : CDef->Properties) {
+             OS << "    " << std::max(0, P.notify.notifyId) << ",\n";
+         }
+     }
+
+
+    //TODO:  + REVISION
 }
 
 void Generator::GenerateEnums(int EnumIndex)

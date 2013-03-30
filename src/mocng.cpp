@@ -198,5 +198,34 @@ ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema) {
         std::cout << Def.Record->getQualifiedNameAsString() <<  " is " << Def.HasQObject << "a Q_OBJECT" << std::endl;
     }*/
 
+
+    //Check notify Signals
+    for (PropertyDef &P: Def.Properties) {
+        if (!P.notify.Str.empty()) {
+            int Idx = 0;
+            for (clang::CXXMethodDecl *MD : Def.Signals) {
+                if (MD->getName() == P.notify.Str) {
+                    P.notify.notifyId = Idx;
+                    P.notify.MD = MD;
+                    break;
+                }
+                Idx += 1 + MD->getNumParams() - MD->getMinRequiredArguments();
+            }
+            if (P.notify.notifyId < 0 ) {
+                PP.getDiagnostics().Report(P.notify.Loc,
+                        PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                        "NOTIFY signal '%0' of property '%1' does not exist in class %2"))
+                    << P.notify.Str << P.name << Def.Record;
+            } else {
+                Def.NotifyCount++;
+            }
+        }
+
+    }
+
+
+
+
+
     return Def;
 }

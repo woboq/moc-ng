@@ -11,6 +11,7 @@
 #include <vector>
 #include <iterator>
 #include <algorithm>
+#include <clang/Basic/SourceLocation.h>
 
 namespace clang {
 class CXXMethodDecl;
@@ -21,11 +22,18 @@ class Preprocessor;
 class Sema;
 }
 
+struct NotifyDef {
+    std::string Str;
+    clang::SourceLocation Loc;
+    clang::CXXMethodDecl *MD = nullptr;
+    int notifyId = -1;
+};
 
 struct PropertyDef {
     std::string name, type, member, read, write, reset, designable, scriptable, editable, stored,
-    user, notify, inPrivateClass;
-    int notifyId = -1;
+    user, inPrivateClass;
+    NotifyDef notify;
+
     bool constant = false;
     bool final = false;
 
@@ -70,6 +78,8 @@ struct ClassDef {
 
     bool HasQObject = false;
     bool HasQGadget = false;
+
+    int NotifyCount = 0;
 
     //TODO: PluginData;
     //TODO: FLagAliases;
