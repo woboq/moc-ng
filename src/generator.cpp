@@ -15,6 +15,13 @@
 
 #include <iostream>
 
+static bool HasPrivateSignal(const clang::CXXMethodDecl *MD) {
+    if (MD && MD->getNumParams()) {
+        clang::CXXRecordDecl* RD = MD->getParamDecl(MD->getNumParams()-1)->getType()->getAsCXXRecordDecl();
+        return RD && RD->getIdentifier() && RD->getName() == "QPrivateSignal";
+    }
+    return false;
+}
 
 //  foreach method,  including  clones
 template<typename T, typename F>
@@ -37,6 +44,8 @@ template<typename T> int AggregatePerameterCount(const std::vector<T>& V) {
     ForEachMethod(V, [&](const clang::CXXMethodDecl *M, int C) {
         R += M->getNumParams() - C;
         R += 1; // return value;
+        if (HasPrivateSignal(M))
+            R--;
     });
     return R;
 }
@@ -85,6 +94,8 @@ void Generator::GenerateFunction(const T& V, const char* TypeName, MethodFlags T
         }
 
         int argc =  M->getNumParams() - C;
+        if (HasPrivateSignal(M))
+            argc--;
 
         OS << "    " << StrIdx(M->getNameAsString()) << ", " << argc << ", " << ParamIndex << ", 0, 0x";
         OS.write_hex(Flags) << ",\n";
@@ -156,9 +167,10 @@ void Generator::GenerateFunctionParameters(const std::vector< T* >& V, const cha
 
     ForEachMethod(V, [&](const clang::CXXMethodDecl *M, int C) {
         int argc =  M->getNumParams() - C;
-        OS << "   "; // only 3 ' ';
+        if (HasPrivateSignal(M))
+            argc--;
+        OS << "    ";
         //Types
-        OS << " ";
         if (std::is_same<T, clang::CXXConstructorDecl>::value)
             OS << "0x80000000 | " << StrIdx("");
         else
@@ -560,8 +572,10 @@ void Generator::GenerateStaticMetaCall()
 
             for (int j = 0 ; j < MD->getNumParams() - C; ++j) {
                 if (j) OS << ",";
-                //FIXME:  QPrivateSignal
-                      OS << "*reinterpret_cast< " << Ctx.getPointerType(MD->getParamDecl(j)->getType().getNonReferenceType().getUnqualifiedType()).getAsString(PrintPolicy) << " >(_a[" << (j+1) << "])";
+                if (j == MD->getNumParams() - 1 && HasPrivateSignal(MD))
+                    OS << "QPrivateSignal()";
+                else
+                    OS << "*reinterpret_cast< " << Ctx.getPointerType(MD->getParamDecl(j)->getType().getNonReferenceType().getUnqualifiedType()).getAsString(PrintPolicy) << " >(_a[" << (j+1) << "])";
             }
             OS << ");\n            if (_a[0]) *reinterpret_cast<QObject**>(_a[0]) = _r; } break;\n";
         });
@@ -591,8 +605,10 @@ void Generator::GenerateStaticMetaCall()
 
             for (int j = 0 ; j < MD->getNumParams() - C; ++j) {
                 if (j) OS << ",";
-                //FIXME:  QPrivateSignal
-                OS << "*reinterpret_cast< " << Ctx.getPointerType(MD->getParamDecl(j)->getType().getNonReferenceType().getUnqualifiedType()).getAsString(PrintPolicy) << " >(_a[" << (j+1) << "])";
+                if (j == MD->getNumParams() - 1 && HasPrivateSignal(MD))
+                    OS << "QPrivateSignal()";
+                else
+                    OS << "*reinterpret_cast< " << Ctx.getPointerType(MD->getParamDecl(j)->getType().getNonReferenceType().getUnqualifiedType()).getAsString(PrintPolicy) << " >(_a[" << (j+1) << "])";
             }
             OS << ");";
             if (!IsVoid) {
@@ -686,8 +702,9 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
        << MD->getResultType().getAsString(PrintPolicy) << " " << MD->getQualifiedNameAsString() + "(";
     for (int j = 0 ; j < MD->getNumParams(); ++j) {
         if (j) OS << ",";
-        OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy) << " _t" << (j+1);
-        //FIXME PrivateSignal
+        OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy);
+        if (!(j == MD->getNumParams() - 1 && HasPrivateSignal(MD)))
+            OS << " _t" << (j+1);;
     }
     OS << ")";
     std::string This = "this";
@@ -697,7 +714,9 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
     }
     OS << "\n{\n";
     bool IsVoid = MD->getResultType()->isVoidType();
-    if (IsVoid && MD->getNumParams() == 0) {
+    unsigned int NumParam = MD->getNumParams();
+    if (HasPrivateSignal(MD)) NumParam--;
+    if (IsVoid && NumParam == 0) {
         OS << "    QMetaObject::activate(" << This << ", &staticMetaObject, " << Idx << ", 0);\n";
     } else {
         std::string T = MD->getResultType().getNonReferenceType().getUnqualifiedType().getAsString(PrintPolicy);
@@ -711,12 +730,11 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
         else OS << "&_t0";
 
 
-        for (int j = 0 ; j < MD->getNumParams(); ++j) {
+        for (int j = 0 ; j < NumParam; ++j) {
             if (MD->getParamDecl(j)->getType().isVolatileQualified())
                 OS << ", const_cast<void*>(reinterpret_cast<const volatile void*>(&_t" << (j+1) << "))";
             else
                 OS << ", const_cast<void*>(reinterpret_cast<const void*>(&_t" << (j+1) << "))";
-            //FIXME PrivateSignal
         }
 
         OS << " };\n"
