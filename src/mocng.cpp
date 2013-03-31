@@ -23,6 +23,74 @@ static clang::SourceLocation GetFromLiteral(clang::Token Tok, clang::StringLiter
 }
 
 
+
+//FIXME.  make it less stupid
+static void parseInterfaces(ClassDef &Def, clang::Expr *Content, clang::Sema &Sema) {
+    clang::Preprocessor &PP = Sema.getPreprocessor();
+    clang::StringLiteral *Val = llvm::dyn_cast<clang::StringLiteral>(Content);
+    if (!Val) {
+        PP.getDiagnostics().Report(Content->getExprLoc(),
+                                   PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                                                       "Invalid Q_INTERFACES annotation"));
+        return;
+    }
+
+    llvm::MemoryBuffer* Buf = llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_INTERFACES");
+    clang::Lexer Lex(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Content->getExprLoc()),
+                     Buf, PP.getSourceManager(), PP.getLangOpts());
+
+    clang::Token Tok;
+    bool Append = false;
+    bool Error = false;
+    while (true) {
+        Lex.LexFromRawLexer(Tok);
+
+        if (Tok.is(clang::tok::eof))
+            break;
+
+        clang::IdentifierInfo* II = nullptr;
+        if (Tok.is(clang::tok::raw_identifier))
+            II = PP.LookUpIdentifierInfo(Tok);
+
+        if (Tok.is(clang::tok::identifier)) {
+            if (Append)
+                Def.Interfaces.back() += PP.getSpelling(Tok);
+            else
+                Def.Interfaces.push_back(PP.getSpelling(Tok));
+            Append = false;
+            continue;
+        }
+
+        if (Append) {
+            Error = true;
+            break;
+        }
+
+        if (Tok.is(clang::tok::coloncolon)) {
+            Def.Interfaces.back() += PP.getSpelling(Tok);
+            Append = true;
+            continue;
+        }
+
+        if (!Tok.is(clang::tok::colon)) {
+            Error = true;
+            break;
+        }
+    }
+
+     if (Error || Append || !Tok.is(clang::tok::eof)) {
+         PP.getDiagnostics().Report(GetFromLiteral(Tok, Val, PP),
+                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                    "parse error in Q_INTERFACES"));
+     }
+
+     // TODO: check interface validity
+}
+
+
+
+
+
 static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::Sema &Sema) {
     clang::Preprocessor &PP = Sema.getPreprocessor();
     clang::StringLiteral *Val = llvm::dyn_cast<clang::StringLiteral>(Content);
@@ -33,7 +101,7 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
         return;
     }
 
-    llvm::MemoryBuffer* Buf = llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_PROPERTY");
+    llvm::MemoryBuffer* Buf = llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_ENUMS");
     clang::Lexer Lex(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Content->getExprLoc()),
                      Buf, PP.getSourceManager(), PP.getLangOpts());
 
@@ -209,8 +277,8 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                     if (Val1 && Val2) {
                         Def.ClassInfo.emplace_back(Val1->getString(), Val2->getString());
                     }
-                } else if (key == "qt_interface") {
-
+                } else if (key == "qt_interfaces") {
+                    parseInterfaces(Def, PE->getSubExpr(), Sema);
                 }
             }
         } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {

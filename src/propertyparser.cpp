@@ -499,3 +499,4 @@ PrivateSlotDef PropertyParser::parsePrivateSlot()
 
     return Slot;
 }
+

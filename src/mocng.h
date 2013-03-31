@@ -83,7 +83,7 @@ struct ClassDef {
         Extra.push_back(E);
     }
 
-    std::vector<std::pair<std::string, std::string>> Interfaces;
+    std::vector<std::string> Interfaces;
     std::vector<std::pair<std::string, std::string>> ClassInfo;
 
     std::vector<PropertyDef> Properties;

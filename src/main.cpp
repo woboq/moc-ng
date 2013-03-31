@@ -277,7 +277,8 @@ public:
             return true;
         }
 
-
+#if 0
+//TODO:  make use of this to check that interfaces are registered.
         if (D.isSingleDecl()) {
             clang::FunctionDecl* FD = llvm::dyn_cast<clang::FunctionDecl>(D.getSingleDecl());
             if (FD && FD->getIdentifier() && FD->getName() == "qobject_interface_iid" ) {
@@ -300,20 +301,10 @@ public:
                     Moc.interfaces.insert({Lit->getString(), RC});
                 } while (false);
 
-                //clang::FunctionTemplateDecl* TD = llvm::dyn_cast<clang::FunctionTemplateDecl>(D.getSingleDecl());
-                //if (TD) TD->dump();
             }
         }
+#endif
 
-            /*
-                        if (TD && TD->getIdentifier() && TD->getName() == "QMetaTypeId" && TD->getTemplateArgs().size() == 1) {
-                          const clang::EnumType* ET = TD->getTemplateArgs().get(0).getAsType()->getAs<clang::EnumType>();
-                          if (ET)
-                            registered_meta_types.insert(ET->getDecl());
-                  }
-                  }
-
-                */
 
         if (!objects.size())
             return true;

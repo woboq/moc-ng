@@ -427,10 +427,8 @@ void Generator::GenerateCode()
               "        return static_cast<void*>(this);\n";
 
         for (const auto &Itrf : CDef->Interfaces) {
-            OS << "    if (!strcmp(_clname, \"";
-            OS.write_escaped(Itrf.first);
-            OS << "\"))\n"
-                  "        return static_cast< " << Itrf.second << "  *>(const_cast<" <<  QualName << "*>(this));\n";
+            OS << "    if (!qstrcmp(_clname, qobject_interface_iid< " << Itrf << " *>()))\n"
+                  "        return static_cast< " << Itrf << "  *>(const_cast<" <<  QualName << "*>(this));\n";
         }
         OS << "    return "<< BaseName <<"::qt_metacast(_clname);\n"
               "}\n";
