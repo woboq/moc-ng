@@ -97,7 +97,7 @@ void Generator::GenerateFunction(const T& V, const char* TypeName, MethodFlags T
         if (HasPrivateSignal(M))
             argc--;
 
-        OS << "    " << StrIdx(M->getNameAsString()) << ", " << argc << ", " << ParamIndex << ", 0, 0x";
+        OS << "    " << StrIdx(M->getNameAsString()) << ", " << argc << ", " << ParamIndex << ", " << StrIdx("") << ", 0x";
         OS.write_hex(Flags) << ",\n";
         ParamIndex += 1 + argc * 2;
     });
