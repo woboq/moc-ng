@@ -220,7 +220,7 @@ ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema, const MetaType
                 } else if (A->getAnnotation() == "qt_slot") {
         //         for (int i = 0; i < Clones; ++i)
                         Def.Slots.push_back(M);
-                } else if (A->getAnnotation() == "qt_invokable") {
+                } else if (A->getAnnotation() == "qt_invokable" || A->getAnnotation() == "qt_scriptable" ) {
                     if (auto *C = llvm::dyn_cast<clang::CXXConstructorDecl>(M)) {
             //            for (int i = 0; i < Clones; ++i)
                             Def.Constructors.push_back(C);

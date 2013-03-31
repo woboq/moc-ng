@@ -424,8 +424,15 @@ void Generator::GenerateCode()
         OS << "void *" << QualName << "::qt_metacast(const char *_clname)\n{\n"
               "    if (!_clname) return 0;\n"
               "    if (!strcmp(_clname, qt_meta_stringdata_" << QualifiedClassNameIdentifier << ".stringdata))\n"
-              "        return static_cast<void*>(const_cast<" <<  QualName << "*>(this));\n"
-              "    return "<< BaseName <<"::qt_metacast(_clname);\n"
+              "        return static_cast<void*>(this);\n";
+
+        for (const auto &Itrf : CDef->Interfaces) {
+            OS << "    if (!strcmp(_clname, \"";
+            OS.write_escaped(Itrf.first);
+            OS << "\"))\n"
+                  "        return static_cast< " << Itrf.second << "  *>(const_cast<" <<  QualName << "*>(this));\n";
+        }
+        OS << "    return "<< BaseName <<"::qt_metacast(_clname);\n"
               "}\n";
 
         GenerateMetaCall();
