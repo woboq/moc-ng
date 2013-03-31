@@ -12,6 +12,7 @@
 #include <iterator>
 #include <algorithm>
 #include <unordered_set>
+#include <unordered_map>
 #include <clang/Basic/SourceLocation.h>
 
 namespace clang {
@@ -98,7 +99,15 @@ struct ClassDef {
     //TODO: FLagAliases;
 };
 
+class MocNg {
+public:
 
-typedef std::unordered_set<const clang::TypeDecl*> MetaTypeSet;
-ClassDef parseClass (clang::CXXRecordDecl* RD, clang::Sema& Sema,
-                     const MetaTypeSet& registered_meta_type);
+    typedef std::unordered_set<const clang::TypeDecl*> MetaTypeSet;
+    MetaTypeSet registered_meta_type;
+
+    typedef std::unordered_map<std::string, const clang::CXXRecordDecl*> InterfaceMap;
+    InterfaceMap interfaces;
+
+    ClassDef parseClass (clang::CXXRecordDecl* RD, clang::Sema& Sema);
+
+};

@@ -225,16 +225,14 @@ private:
     }*/
 };
 
-
-
 class MocASTConsumer : public clang::ASTConsumer
 {
     clang::CompilerInstance &ci;
     clang::ASTContext *ctx = nullptr;
     MocPPCallbacks *PPCallbacks = nullptr;
 
-    std::unordered_set<const clang::TypeDecl *> registered_meta_types;
     std::vector<ClassDef> objects;
+    MocNg Moc;
 
 
 
@@ -281,8 +279,30 @@ public:
 
 
         if (D.isSingleDecl()) {
-            clang::FunctionTemplateDecl* TD = llvm::dyn_cast<clang::FunctionTemplateDecl>(D.getSingleDecl());
-            if (TD) TD->dump();
+            clang::FunctionDecl* FD = llvm::dyn_cast<clang::FunctionDecl>(D.getSingleDecl());
+            if (FD && FD->getIdentifier() && FD->getName() == "qobject_interface_iid" ) {
+
+                do {
+                    const clang::TemplateArgumentList* Args = FD->getTemplateSpecializationArgs();
+                    if (!Args || Args->size() != 1 || Args->get(0).getKind() != clang::TemplateArgument::Type)
+                        break;
+                    const clang::CXXRecordDecl *RC = Args->get(0).getAsType()->getPointeeCXXRecordDecl();
+                    if (!RC) break;
+                    auto *Body = llvm::dyn_cast_or_null<clang::CompoundStmt>(FD->getBody());
+                    if (!Body) break;
+                    auto *Ret = llvm::dyn_cast_or_null<clang::ReturnStmt>(Body->body_back());
+                    if (!Ret) break;
+                    auto *Cast = llvm::dyn_cast_or_null<clang::CastExpr>(Ret->getRetValue());
+                    if (!Cast) break;
+                    clang::StringLiteral *Lit = llvm::dyn_cast_or_null<clang::StringLiteral>(Cast->getSubExpr());
+                    if (!Lit) break;
+
+                    Moc.interfaces.insert({Lit->getString(), RC});
+                } while (false);
+
+                //clang::FunctionTemplateDecl* TD = llvm::dyn_cast<clang::FunctionTemplateDecl>(D.getSingleDecl());
+                //if (TD) TD->dump();
+            }
         }
 
             /*
@@ -502,7 +522,7 @@ public:
         if (TD && TD->getIdentifier() && TD->getName() == "QMetaTypeId" && TD->getTemplateArgs().size() == 1) {
             const clang::EnumType* ET = TD->getTemplateArgs().get(0).getAsType()->getAs<clang::EnumType>();
             if (ET)
-                registered_meta_types.insert(ET->getDecl());
+                Moc.registered_meta_type.insert(ET->getDecl());
         }
 
 
@@ -517,7 +537,7 @@ public:
 
         PPCallbacks->seenQ_OBJECT = {};*/
 
-        ClassDef Def = parseClass(RD, ci.getSema(), registered_meta_types);
+        ClassDef Def = Moc.parseClass(RD, ci.getSema());
         if (Def.HasQObject || Def.HasQGadget) {
             objects.push_back(std::move(Def));
             ci.getPreprocessor().enableIncrementalProcessing();

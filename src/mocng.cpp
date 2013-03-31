@@ -138,7 +138,8 @@ static std::pair<clang::StringLiteral*, clang::StringLiteral *> ExtractLiterals(
     return {Val1, Val2};
 }
 
-ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema, const MetaTypeSet &registered_meta_type) {
+ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
+{
     clang::Preprocessor &PP = Sema.getPreprocessor();
     ClassDef Def;
     Def.Record = RD;
@@ -208,6 +209,7 @@ ClassDef parseClass (clang::CXXRecordDecl *RD, clang::Sema &Sema, const MetaType
                     if (Val1 && Val2) {
                         Def.ClassInfo.emplace_back(Val1->getString(), Val2->getString());
                     }
+                } else if (key == "qt_interface") {
                 }
             }
         } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {
