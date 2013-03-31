@@ -853,8 +853,10 @@ void Generator::GenerateProperties()
             flags |= Readable;
         if (!p.write.empty()) {
             flags |= Writable;
-        //if (p.stdCppSet())
-        //    flags |= StdCppSet;
+
+            llvm::StringRef W(p.write);
+            if (W.startswith("set") && W[3] == char(toupper(p.name[0])) &&  W.substr(4) == &p.name[1])
+                flags |= StdCppSet;
         }
         if (!p.reset.empty())
             flags |= Resettable;
