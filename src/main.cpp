@@ -239,7 +239,9 @@ class MocASTConsumer : public clang::ASTConsumer
 
 
     static bool IsQtVirtual(const clang::CXXMethodDecl *MD) {
-        auto Name = MD->getNameAsString();
+        if (!MD->getIdentifier())
+            return false;
+        auto Name = MD->getName();
         return (Name == "qt_metacall" || Name == "qt_metacast" || Name == "metaObject"
             || Name == "qt_static_metacall");
     }
@@ -277,15 +279,21 @@ public:
             return true;
         }
 
-        if (D.isSingleDecl()) {
-            clang::ClassTemplateSpecializationDecl* TD = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(D.getSingleDecl());
-            if (TD && TD->getIdentifier() && TD->getName() == "QMetaTypeId" && TD->getTemplateArgs().size() == 1) {
-                const clang::EnumType* ET = TD->getTemplateArgs().get(0).getAsType()->getAs<clang::EnumType>();
-                if (ET)
-                    registered_meta_types.insert(ET->getDecl());
 
-            }
+        if (D.isSingleDecl()) {
+            clang::FunctionTemplateDecl* TD = llvm::dyn_cast<clang::FunctionTemplateDecl>(D.getSingleDecl());
+            if (TD) TD->dump();
         }
+
+            /*
+                        if (TD && TD->getIdentifier() && TD->getName() == "QMetaTypeId" && TD->getTemplateArgs().size() == 1) {
+                          const clang::EnumType* ET = TD->getTemplateArgs().get(0).getAsType()->getAs<clang::EnumType>();
+                          if (ET)
+                            registered_meta_types.insert(ET->getDecl());
+                  }
+                  }
+
+                */
 
         if (!objects.size())
             return true;
@@ -489,6 +497,16 @@ public:
         clang::CXXRecordDecl *RD = llvm::dyn_cast<clang::CXXRecordDecl>(D);
         if (!RD)
             return;
+
+        clang::ClassTemplateSpecializationDecl* TD = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(RD);
+        if (TD && TD->getIdentifier() && TD->getName() == "QMetaTypeId" && TD->getTemplateArgs().size() == 1) {
+            const clang::EnumType* ET = TD->getTemplateArgs().get(0).getAsType()->getAs<clang::EnumType>();
+            if (ET)
+                registered_meta_types.insert(ET->getDecl());
+        }
+
+
+
         /*if (!(PPCallbacks->seenQ_OBJECT.isValid() &&
                 ctx->getSourceManager().isBeforeInTranslationUnit(D->getSourceRange().getBegin(),
                             PPCallbacks->seenQ_OBJECT) &&

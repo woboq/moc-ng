@@ -66,7 +66,7 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
                 Sema.LookupQualifiedName(Found, DC ? DC : Def.Record);
             }
 
-            std::string Alias;
+            llvm::StringRef Alias;
             clang::EnumDecl* R = Found.getAsSingle<clang::EnumDecl>();
 
             if (!R) {
@@ -77,7 +77,8 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
                         ET = TDR->getArg(0).getAsType()->getAs<clang::EnumType>();
                     if (ET) {
                         R = ET->getDecl();
-                        Alias = TD->getNameAsString();
+                        if (TD->getIdentifier())
+                            Alias = TD->getName();
                     }
                 }
             }
@@ -91,9 +92,11 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
                                             "no enum names %0")) << Found.getLookupName();
                 break;
             }
-            if (R->getDeclContext() == Def.Record)
-                Def.addEnum(R, Alias.empty() ? R->getNameAsString() : Alias, isFlag);
-            else if (R->getDeclContext()->isRecord() &&  llvm::isa<clang::CXXRecordDecl>(R->getDeclContext())) {
+            if (R->getDeclContext() == Def.Record) {
+                if (Alias.empty() && R->getIdentifier())
+                    Alias = R->getName();
+                Def.addEnum(R, Alias.empty() ? R->getNameAsString() : std::string(Alias), isFlag);
+            } else if (R->getDeclContext()->isRecord() &&  llvm::isa<clang::CXXRecordDecl>(R->getDeclContext())) {
                 // TODO: check it is a QObject
                 Def.addExtra(llvm::cast<clang::CXXRecordDecl>(R->getDeclContext()));
             }
