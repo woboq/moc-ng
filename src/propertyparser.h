@@ -39,7 +39,7 @@ public:
     PropertyParser(llvm::StringRef Text, clang::SourceLocation Loc, clang::Sema &Sema,
                    clang::CXXRecordDecl *RD, const MocNg::MetaTypeSet *MTS = nullptr) :
         Sema(Sema), PP(Sema.getPreprocessor()),
-        Buf(llvm::MemoryBuffer::getMemBufferCopy(Text, "Q_PROPERTY")),
+        Buf(llvm::MemoryBuffer::getMemBufferCopy(Text/*, "Q_PROPERTY"*/)),
 //        Lexer(PP.getSourceManager().getSpellingLoc(Loc), PP.getLangOpts(), Text.begin(), Text.begin(), Text.end()),
         Lexer(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Loc),
               Buf, PP.getSourceManager(), PP.getLangOpts()),
@@ -82,8 +82,7 @@ public:
     std::string parseUnsigned();
     std::string parseTemplateType();
     std::string parseType(bool SupressDiagnostics = true);
-    PropertyDef parse();
-
+    PropertyDef parseProperty();
     PrivateSlotDef parsePrivateSlot();
 };
 

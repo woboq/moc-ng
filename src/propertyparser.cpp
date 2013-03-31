@@ -300,7 +300,7 @@ std::string PropertyParser::parseType(bool SupressDiagnostics) {
     return Result;
 }
 
-PropertyDef PropertyParser::parse() {
+PropertyDef PropertyParser::parseProperty() {
     PropertyDef Def;
     Consume();
     std::string type = parseType(false);

@@ -157,7 +157,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
     //                                          Val->getStrTokenLoc(0),
                                             Val->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
                                             Sema, Def.Record, &registered_meta_type);
-                        Def.Properties.push_back(Parser.parse());
+                        Def.Properties.push_back(Parser.parseProperty());
                         Def.addExtra(Parser.Extra);
                     } else {
                         PP.getDiagnostics().Report(S->getLocation(),
@@ -173,7 +173,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                         PropertyParser Parser(Val2->getString(),
                                               Val2->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
                                               Sema, Def.Record);
-                        PropertyDef P = Parser.parse();
+                        PropertyDef P = Parser.parseProperty();
                         P.inPrivateClass = Val1->getString();
                         Def.Properties.push_back(std::move(P));
                         Def.addExtra(Parser.Extra);
@@ -210,6 +210,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                         Def.ClassInfo.emplace_back(Val1->getString(), Val2->getString());
                     }
                 } else if (key == "qt_interface") {
+
                 }
             }
         } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {
