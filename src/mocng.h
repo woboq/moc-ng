@@ -11,7 +11,7 @@
 #include <vector>
 #include <iterator>
 #include <algorithm>
-#include <unordered_set>
+#include <set>
 #include <unordered_map>
 #include <clang/Basic/SourceLocation.h>
 
@@ -102,7 +102,7 @@ struct ClassDef {
 class MocNg {
 public:
 
-    typedef std::unordered_set<const clang::TypeDecl*> MetaTypeSet;
+    typedef std::set<const clang::TypeDecl*> MetaTypeSet;
     MetaTypeSet registered_meta_type;
 
     typedef std::unordered_map<std::string, const clang::CXXRecordDecl*> InterfaceMap;

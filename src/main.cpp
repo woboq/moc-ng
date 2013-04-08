@@ -7,6 +7,14 @@
 
 #include <clang/Frontend/FrontendAction.h>
 #include <clang/Tooling/Tooling.h>
+#include <clang/Driver/Driver.h>
+#include <clang/Driver/Compilation.h>
+#include <clang/Driver/Tool.h>
+
+
+#include <clang/Driver/Job.h>
+#include "clang/Frontend/TextDiagnosticPrinter.h"
+#include <llvm/Support/Host.h>
 
 #include <vector>
 #include <iostream>
@@ -129,52 +137,89 @@ public:
 
 
 
-int main(int argc, const char **argv) {
+int main(int argc, const char **argv)
+{
+  std::vector<std::string> Argv;
+  Argv.push_back(argv[0]);
+  Argv.push_back("-x");  // Type need to go first
+  Argv.push_back("c++");
+  Argv.push_back("-fsyntax-only");
+  Argv.push_back("-fPIE");
 
-    std::vector<std::string> Args;
-    for (int i = 0; i < argc; ++i)
-        Args.push_back(argv[i]);
-
-    Args.push_back("-fsyntax-only");
-    Args.push_back("-x");
-    Args.push_back("c++");
-    clang::FileManager FM({"."});
-    clang::tooling::ToolInvocation Inv(Args, new MocAction, &FM);
-    return Inv.run();
-/*
-    llvm::cl::ParseCommandLineOptions(argc, argv);
-    clang::tooling::FixedCompilationDatabase DB(".", Args);
+  for (int I = 1 ; I < argc; ++I)
+    Argv.push_back(argv[I]);
 
 
-    clang::tooling::ClangTool Tool(DB, Options::SourcePaths);
+  clang::FileManager FM({"."});
+  clang::tooling::ToolInvocation Inv(Argv, new MocAction, &FM);
+  return Inv.run();
 
-    return Tool.run(clang::tooling::newFrontendActionFactory<MocAction>());
-*/
-//    return !Inv.run();
 
 #if 0
-  llvm::OwningPtr<CompilationDatabase> Compilations(
-    FixedCompilationDatabase::loadFromCommandLine(argc, argv));
-  llvm::cl::ParseCommandLineOptions(argc, argv);
-  if (!Compilations) {
-    std::string ErrorMessage;
-    Compilations.reset(CompilationDatabase::loadFromDirectory(BuildPath,
-                                                            ErrorMessage));
 
-    /*if (!BuildPath.empty()) {
-      Compilations.reset(
-         CompilationDatabase::autoDetectFromDirectory(BuildPath, ErrorMessage));
-    } else {
-      Compilations.reset(CompilationDatabase::autoDetectFromSource(
-          SourcePaths[0], ErrorMessage));
-    }*/
-    if (!Compilations)
-      llvm::report_fatal_error(ErrorMessage);
+  clang::FileManager Files({"."});
+
+
+  const char *const BinaryName = Argv[0];
+  llvm::IntrusiveRefCntPtr<clang::DiagnosticOptions> DiagOpts = new clang::DiagnosticOptions();
+  clang::TextDiagnosticPrinter DiagnosticPrinter(llvm::errs(), &*DiagOpts);
+  clang::DiagnosticsEngine Diagnostics(
+    llvm::IntrusiveRefCntPtr<clang::DiagnosticIDs>(new clang::DiagnosticIDs()),
+                                &*DiagOpts, &DiagnosticPrinter, false);
+
+  const std::string DefaultOutputName = "a.out"; //FIXME
+  llvm::OwningPtr<clang::driver::Driver> Driver ( new clang::driver::Driver(BinaryName,
+                              llvm::sys::getDefaultTargetTriple(), DefaultOutputName, false, Diagnostics));
+  Driver->setTitle("moc-ng");
+//  Driver->setCheckInputsExist(false);
+  const llvm::OwningPtr<clang::driver::Compilation> Compilation(
+      Driver->BuildCompilation(llvm::makeArrayRef(Argv)));
+
+
+  const clang::driver::JobList &Jobs = Compilation->getJobs();
+  if (Jobs.size() != 1 || !llvm::isa<clang::driver::Command>(*Jobs.begin())) {
+    llvm::SmallString<256> error_msg;
+    llvm::raw_svector_ostream error_stream(error_msg);
+    Compilation->PrintJob(error_stream, Compilation->getJobs(), "; ", true);
+//    Diagnostics.Report(clang::diag::err_fe_expected_compiler_job) << error_stream.str();
+    return 0;
   }
-  int i;
-;
-  ClangTool Tool(*Compilations, SourcePaths);
-  return Tool.run(newFrontendActionFactory<MyAction>());
+  // The one job we find should be to invoke clang again.
+  const clang::driver::Command *Cmd = llvm::cast<clang::driver::Command>(*Jobs.begin());
+  if (llvm::StringRef(Cmd->getCreator().getName()) != "clang") {
+  //  Diagnostics.Report(clang::diag::err_fe_expected_clang_command);
+    return 0;
+  }
+  const clang::driver::ArgStringList *const CC1Args = &Cmd->getArguments();
+  llvm::OwningPtr<clang::CompilerInvocation> Invocation ( new clang::CompilerInvocation );
+  clang::CompilerInvocation::CreateFromArgs(*Invocation, CC1Args->data() + 1, CC1Args->data() + CC1Args->size(), Diagnostics);
+//  Invocation->getFrontendOpts().DisableFree = false;  // FIXME
+
+  if (Invocation->getHeaderSearchOpts().Verbose) {
+    llvm::errs() << "clang Invocation:\n";
+    Compilation->PrintJob(llvm::errs(), Compilation->getJobs(), "\n", true);
+    llvm::errs() << "\n";
+  }
+  // Create a compiler instance to handle the actual work.
+  clang::CompilerInstance Compiler;
+  Compiler.setInvocation(Invocation.take());
+  Compiler.setFileManager(&Files);
+  // FIXME: What about LangOpts?
+
+  // ToolAction can have lifetime requirements for Compiler or its members, and
+  // we need to ensure it's deleted earlier than Compiler. So we pass it to an
+  // OwningPtr declared after the Compiler variable.
+  llvm::OwningPtr<clang::FrontendAction> ScopedToolAction(new MocAction);
+  // Create the compilers actual diagnostics engine.
+  Compiler.createDiagnostics(argc, argv);
+  if (!Compiler.hasDiagnostics())
+    return false;
+  Compiler.createSourceManager(Files);
+  const bool Success = Compiler.ExecuteAction(*ScopedToolAction);
+  Compiler.resetAndLeakFileManager();
+  Files.clearStatCaches();
+  return Success;
+
 #endif
 }
 
