@@ -134,8 +134,8 @@ struct MocNGASTConsumer : public MocASTConsumer {
         Out << "#if !defined(Q_MOC_OUTPUT_REVISION)\n"
                "#error \"The header file '" << InFile << "' doesn't include <QObject>.\"\n"
                "#elif Q_MOC_OUTPUT_REVISION != " << mocOutputRevision << "\n"
-               "#error \"This file was generated using MOC-NG " MOCNG_VERSION_STR ". It\n"
-               "#error \"cannot be used with the include files from this version of Qt.\"\n"
+               "#error \"This file was generated using MOC-NG " MOCNG_VERSION_STR ".\"\n"
+               "#error \"It cannot be used with the include files from this version of Qt.\"\n"
                "#endif\n\n"
                "QT_BEGIN_MOC_NAMESPACE\n";
 
@@ -173,6 +173,16 @@ protected:
         CI.getPreprocessor().enableIncrementalProcessing(true);
         CI.getPreprocessor().SetSuppressIncludeNotFoundError(true);
         CI.getLangOpts().DelayedTemplateParsing = true;
+
+        //enable all the extension
+        CI.getLangOpts().MicrosoftExt = true;
+        CI.getLangOpts().DollarIdents = true;
+        CI.getLangOpts().CPlusPlus11 = true;
+        CI.getLangOpts().CPlusPlus1y = true;
+        CI.getLangOpts().GNUMode = true;
+
+        std::cout << "---" <<  CI.getFrontendOpts().OutputFile <<  std::endl;
+
         return new MocNGASTConsumer(CI, InFile);
     }
 
@@ -210,9 +220,14 @@ int main(int argc, const char **argv)
     Argv.push_back("-o-");
   }
 
+  //FIXME
+  Argv.push_back("-I/usr/include/qt5");
+  Argv.push_back("-I/usr/include/qt5/QtCore");
+  Argv.push_back("-I/usr/lib/clang/3.2/include/");
+
   clang::FileManager FM({"."});
   clang::tooling::ToolInvocation Inv(Argv, new MocAction, &FM);
-  return Inv.run();
+  return !Inv.run();
 
 
 #if 0

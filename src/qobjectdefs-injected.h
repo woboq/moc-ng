@@ -1,7 +1,6 @@
 //#include <QtCore/qobjectdefs.h>
 
 const char Injected[] = R"-(
-
 #ifdef Q_MOC_OUTPUT_REVISION
 
 #define QT_ANNOTATE_CLASS(type, anotation) \
@@ -81,5 +80,4 @@ private: \
 #define QT_MOC_COMPAT  __attribute__((annotate("qt_moc_compat")))
 
 #endif
-
 )-";

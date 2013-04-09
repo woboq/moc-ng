@@ -10,6 +10,8 @@
 class MocPPCallbacks : public clang::PPCallbacks {
     clang::Preprocessor &PP;
 
+    bool IncludeNotFoundSupressed = false;
+
     void InjectQObjectDefs(clang::SourceLocation Loc);
 
 public:
@@ -66,14 +68,15 @@ public:
     {
         //std::cout << "FILE NOT FOUND " << std::string(FileName) << std::endl;
         if (FileName.endswith(".moc") || FileName.endswith("_moc.cpp") || FileName.startswith("moc_")) {
-            PP.SetSuppressIncludeNotFoundError(true);
-            /*PP.getFileManager().getVirtualFile(("/qt_dummy_moc/" + FileName).str(), 0, 0);
-            const char *R = "/qt_dummy_moc/";
-            RecoveryPath.assign(14, *R);
-            std::cout << RecoveryPath.data() << " " << std::endl;
-            return true;*/
+            if (!PP.GetSuppressIncludeNotFoundError()) {
+                PP.SetSuppressIncludeNotFoundError(true);
+                IncludeNotFoundSupressed = true;
+            }
         } else {
-            PP.SetSuppressIncludeNotFoundError(false);
+            if (IncludeNotFoundSupressed) {
+                PP.SetSuppressIncludeNotFoundError(false);
+                IncludeNotFoundSupressed = false;
+            }
         }
         return false;
     }
