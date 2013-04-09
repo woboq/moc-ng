@@ -14,14 +14,18 @@
 
 #include <clang/Driver/Job.h>
 #include "clang/Frontend/TextDiagnosticPrinter.h"
+#include <clang/Lex/Preprocessor.h>
+#include <clang/AST/ASTContext.h>
+#include <clang/AST/DeclCXX.h>
 #include <llvm/Support/Host.h>
 
 #include <vector>
 #include <iostream>
 
 #include "mocastconsumer.h"
+#include "generator.h"
 
-
+#if 0
 namespace Options {
 
 namespace cl = llvm::cl;
@@ -89,45 +93,87 @@ cl::opt<bool> Version(
     "v",
     cl::desc("display version"),
     cl::Optional);
-
-
-/*
-
-cl::opt<std::string> BuildPath(
-  "b",
-  cl::desc("<build-path>"),
-  cl::Optional);
-
-
-
-
-cl::list<std::string> ProjectPaths(
-    "p",
-    cl::desc("<project>:<path>[:<revision>]"),
-    cl::ZeroOrMore);
-
-
-cl::list<std::string> ExternalProjectPaths(
-    "e",
-    cl::desc("<project>:<path>:<url>"),
-    cl::ZeroOrMore);
-
-cl::opt<std::string> DataPath(
-    "d",
-    cl::desc("<data path>"),
-    cl::Optional);
-*/
-
 }
+#endif
+
+
+struct MocOptions {
+  bool NoInclude = false;
+  std::vector<std::string> Includes;
+} Options;
+
+
+
+struct MocNGASTConsumer : public MocASTConsumer {
+    std::string InFile;
+    MocNGASTConsumer(clang::CompilerInstance& ci, llvm::StringRef InFile) : MocASTConsumer(ci), InFile(InFile) {}
+
+    void HandleTranslationUnit(clang::ASTContext& Ctx) override {
+
+        if (ci.getDiagnostics().hasErrorOccurred())
+          return;
+
+        llvm::raw_ostream *OS = ci.createDefaultOutputFile(false);
+        if (!OS) return;
+        llvm::raw_ostream &Out = *OS;
+
+        Out <<  "/****************************************************************************\n"
+                "** Meta object code from reading C++ file '" << InFile << "'\n"
+                "**\n"
+                "** Created by MOC-NG version " MOCNG_VERSION_STR " by Woboq [http://woboq.com]\n"
+                "** WARNING! All changes made in this file will be lost!\n"
+                "*****************************************************************************/\n\n";
+
+        if (!Options.NoInclude) {
+          for (auto &s : Options.Includes) {
+            Out << s << "\n";
+          }
+          Out << "#include \"" << InFile << "\"\n";
+        }
+
+        Out << "#if !defined(Q_MOC_OUTPUT_REVISION)\n"
+               "#error \"The header file '" << InFile << "' doesn't include <QObject>.\"\n"
+               "#elif Q_MOC_OUTPUT_REVISION != " << mocOutputRevision << "\n"
+               "#error \"This file was generated using MOC-NG " MOCNG_VERSION_STR ". It\n"
+               "#error \"cannot be used with the include files from this version of Qt.\"\n"
+               "#endif\n\n"
+               "QT_BEGIN_MOC_NAMESPACE\n";
+
+
+        int Count = 0;
+        for (const ClassDef &Def : objects ) {
+          if (!Def.Record || !Def.Record->getDefinition())
+            continue;
+          auto SL = Def.Record->getDefinition()->getSourceRange().getBegin();
+          SL = ci.getSourceManager().getExpansionLoc(SL);
+          if (ci.getSourceManager().getFileID(SL) != ci.getSourceManager().getMainFileID())
+            continue;
+          Count++;
+          Generator G(&Def, Out, Ctx);
+          G.GenerateCode();
+        };
+
+        Out << "QT_END_MOC_NAMESPACE\n";
+
+        if (!Count)
+          ci.getDiagnostics().Report(ci.getSourceManager().getLocForStartOfFile(ci.getSourceManager().getMainFileID()),
+                  ci.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                                      "No Q_OBJECT class found in this file"));
+    }
+};
 
 
 class MocAction : public clang::ASTFrontendAction {
 protected:
+
     virtual clang::ASTConsumer *CreateASTConsumer(clang::CompilerInstance &CI,
                                            llvm::StringRef InFile) override {
 
         CI.getFrontendOpts().SkipFunctionBodies = true;
-        return new MocASTConsumer(CI);
+        CI.getPreprocessor().enableIncrementalProcessing(true);
+        CI.getPreprocessor().SetSuppressIncludeNotFoundError(true);
+        CI.getLangOpts().DelayedTemplateParsing = true;
+        return new MocNGASTConsumer(CI, InFile);
     }
 
 public:
@@ -146,9 +192,23 @@ int main(int argc, const char **argv)
   Argv.push_back("-fsyntax-only");
   Argv.push_back("-fPIE");
 
-  for (int I = 1 ; I < argc; ++I)
-    Argv.push_back(argv[I]);
+  bool HasOutput = false;
 
+  for (int I = 1 ; I < argc; ++I) {
+    if (argv[I][0] == '-') {
+      if (argv[I][1] == 'o') {
+        HasOutput = true;
+      } else if (argv[I][1] == 'i') {
+        Options.NoInclude = true;
+        continue;
+      }
+    }
+    Argv.push_back(argv[I]);
+  }
+
+  if (!HasOutput) {
+    Argv.push_back("-o-");
+  }
 
   clang::FileManager FM({"."});
   clang::tooling::ToolInvocation Inv(Argv, new MocAction, &FM);

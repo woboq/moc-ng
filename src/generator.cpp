@@ -211,9 +211,6 @@ Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTCont
 
 void Generator::GenerateCode()
 {
-    enum { OutputRevision = 7,
-          MetaObjectPrivateFieldCount = 14 //  = sizeof(QMetaObjectPrivate) / sizeof(int)
-    };
 
     // Build the data array
     std::string QualifiedClassNameIdentifier = QualName;

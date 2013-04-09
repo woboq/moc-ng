@@ -72,7 +72,12 @@ enum MetaDataFlags {
 };
 
 
+enum { OutputRevision = 7,
+       MetaObjectPrivateFieldCount = 14, //  = sizeof(QMetaObjectPrivate) / sizeof(int)
+       mocOutputRevision = 67
+};
 
+#define MOCNG_VERSION_STR "alpha 1"
 
 class Generator {
     const ClassDef *CDef;

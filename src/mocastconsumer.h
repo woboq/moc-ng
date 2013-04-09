@@ -15,6 +15,7 @@ class MocPPCallbacks;
 
 class MocASTConsumer : public clang::ASTConsumer
 {
+protected:
     clang::CompilerInstance &ci;
     clang::ASTContext *ctx = nullptr;
     MocPPCallbacks *PPCallbacks = nullptr;
@@ -22,24 +23,11 @@ class MocASTConsumer : public clang::ASTConsumer
     std::vector<ClassDef> objects;
     MocNg Moc;
 
-    bool done = false;
-
-    std::string generate() ;
-
 public:
     MocASTConsumer(clang::CompilerInstance &ci) :ci(ci)
-    {
-        //ci.getLangOpts().DelayedTemplateParsing = (true);
-    }
+    { }
 
     virtual void Initialize(clang::ASTContext& Ctx) override;
-
-
-    virtual bool HandleTopLevelDecl(clang::DeclGroupRef D) override;
-
-
     void HandleTagDeclDefinition(clang::TagDecl* D) override;
-
-
 };
 
