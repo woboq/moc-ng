@@ -284,13 +284,21 @@ std::string PropertyParser::parseType(bool SupressDiagnostics) {
 
     while (Test(clang::tok::kw_volatile)
             || Test(clang::tok::star)
-            || Test(clang::tok::amp)
-            || Test(clang::tok::ampamp)
             || Test(clang::tok::kw_const)) {
         Extra = nullptr;
         IsEnum = false;
         Result += Spelling();
     }
+
+    if (Test(clang::tok::amp)) {
+        if (HasConst)
+            HasConst = false; // remove const reference
+        else
+            Result += Spelling();
+    } else {
+        Test(clang::tok::ampamp); // skip rvalue ref
+    }
+
 
     if (HasVolatile)
         Result = "volatile " + Result;
