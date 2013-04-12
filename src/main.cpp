@@ -109,10 +109,28 @@ struct MocNGASTConsumer : public MocASTConsumer {
     std::string InFile;
     MocNGASTConsumer(clang::CompilerInstance& ci, llvm::StringRef InFile) : MocASTConsumer(ci), InFile(InFile) {}
 
+    void HandleTagDeclDefinition(clang::TagDecl* D) override {
+        auto SL = D->getSourceRange().getBegin();
+        SL = ci.getSourceManager().getExpansionLoc(SL);
+        if (ci.getSourceManager().getFileID(SL) != ci.getSourceManager().getMainFileID())
+            return;
+        MocASTConsumer::HandleTagDeclDefinition(D);
+    }
+
     void HandleTranslationUnit(clang::ASTContext& Ctx) override {
 
         if (ci.getDiagnostics().hasErrorOccurred())
           return;
+
+        if (!objects.size()) {
+          ci.getDiagnostics().Report(ci.getSourceManager().getLocForStartOfFile(ci.getSourceManager().getMainFileID()),
+                                     ci.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
+                                                                         "No relevant classes found. No output generated"));
+          //actually still create an empty file like moc does.
+          ci.createOutputFile(Options.Output, false);
+          return;
+        }
+
 
         llvm::raw_ostream *OS = ci.createOutputFile(Options.Output, false);
         if (!OS) return;
@@ -142,28 +160,14 @@ struct MocNGASTConsumer : public MocASTConsumer {
                "QT_BEGIN_MOC_NAMESPACE\n";
 
 
-        int Count = 0;
         for (const ClassDef &Def : objects ) {
-          if (!Def.Record || !Def.Record->getDefinition())
-            continue;
-          auto SL = Def.Record->getDefinition()->getSourceRange().getBegin();
-          SL = ci.getSourceManager().getExpansionLoc(SL);
-          if (ci.getSourceManager().getFileID(SL) != ci.getSourceManager().getMainFileID())
-            continue;
-          Count++;
           Generator G(&Def, Out, Ctx);
           G.GenerateCode();
         };
 
         Out << "QT_END_MOC_NAMESPACE\n";
-
-        if (!Count)
-          ci.getDiagnostics().Report(ci.getSourceManager().getLocForStartOfFile(ci.getSourceManager().getMainFileID()),
-                  ci.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
-                                                      "No Q_OBJECT class found in this file"));
     }
 };
-
 
 class MocAction : public clang::ASTFrontendAction {
 protected:
