@@ -330,7 +330,7 @@ void Generator::GenerateCode()
             }
             //Names
             for (int j = 0; j < argc; j++) {
-                    OS << " " << StrIdx("") << ",";
+                    OS << ", " << StrIdx("");
             }
             OS << ",\n";
         }
