@@ -129,7 +129,8 @@ struct MocNGASTConsumer : public MocASTConsumer {
           for (auto &s : Options.Includes) {
             Out << s << "\n";
           }
-          Out << "#include \"" << InFile << "\"\n";
+          if (llvm::StringRef(InFile).endswith(".h"))
+            Out << "#include \"" << InFile << "\"\n";
         }
 
         Out << "#if !defined(Q_MOC_OUTPUT_REVISION)\n"
@@ -202,7 +203,6 @@ int main(int argc, const char **argv)
   Argv.push_back("-fPIE");
 
   Options.Output = "-";
-
 
   for (int I = 1 ; I < argc; ++I) {
     if (argv[I][0] == '-') {
