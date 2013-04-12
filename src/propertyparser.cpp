@@ -131,6 +131,7 @@ std::string PropertyParser::parseTemplateType() {
             if (ParensLevel > 0)
                 break;
             Result += ",";
+            Consume();
             return Result + parseTemplateType();
 
         case clang::tok::kw_const:
