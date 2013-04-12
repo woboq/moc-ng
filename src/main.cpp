@@ -100,6 +100,7 @@ cl::opt<bool> Version(
 struct MocOptions {
   bool NoInclude = false;
   std::vector<std::string> Includes;
+  std::string Output;
 } Options;
 
 
@@ -113,7 +114,7 @@ struct MocNGASTConsumer : public MocASTConsumer {
         if (ci.getDiagnostics().hasErrorOccurred())
           return;
 
-        llvm::raw_ostream *OS = ci.createDefaultOutputFile(false);
+        llvm::raw_ostream *OS = ci.createOutputFile(Options.Output, false);
         if (!OS) return;
         llvm::raw_ostream &Out = *OS;
 
@@ -181,8 +182,6 @@ protected:
         CI.getLangOpts().CPlusPlus1y = true;
         CI.getLangOpts().GNUMode = true;
 
-        std::cout << "---" <<  CI.getFrontendOpts().OutputFile <<  std::endl;
-
         return new MocNGASTConsumer(CI, InFile);
     }
 
@@ -202,22 +201,21 @@ int main(int argc, const char **argv)
   Argv.push_back("-fsyntax-only");
   Argv.push_back("-fPIE");
 
-  bool HasOutput = false;
+  Options.Output = "-";
+
 
   for (int I = 1 ; I < argc; ++I) {
     if (argv[I][0] == '-') {
       if (argv[I][1] == 'o') {
-        HasOutput = true;
+        if (argv[I][2]) Options.Output = &argv[I][2];
+        else if ((++I) < argc) Options.Output = argv[I];
+        continue;
       } else if (argv[I][1] == 'i') {
         Options.NoInclude = true;
         continue;
       }
     }
     Argv.push_back(argv[I]);
-  }
-
-  if (!HasOutput) {
-    Argv.push_back("-o-");
   }
 
   //FIXME
