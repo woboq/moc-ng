@@ -332,13 +332,13 @@ PropertyDef PropertyParser::parseProperty(bool PrivateProperty) {
 
     Def.isEnum = IsEnum; // Well, that's what moc does.
 
-
-    if (!Test(clang::tok::identifier)) {
+    if (!CurrentTok.getIdentifierInfo()) {
         PP.getDiagnostics().Report(OriginalLocation(CurrentTok.getLocation()),
                         PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
                         "Expected identifier as Q_PROPERTY name"));
         return Def;
     }
+    Consume();
 
     Def.name = Spelling();
 
