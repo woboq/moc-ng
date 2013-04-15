@@ -168,6 +168,7 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
                 // TODO: check it is a QObject
                 Def.addExtra(llvm::cast<clang::CXXRecordDecl>(R->getDeclContext()));
             }
+            SS.clear();
             continue;
         } else if (Tok.is(clang::tok::coloncolon)) {
             if (SS.isEmpty()) {
