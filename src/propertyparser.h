@@ -82,7 +82,7 @@ public:
     std::string parseUnsigned();
     std::string parseTemplateType();
     std::string parseType(bool SupressDiagnostics = true);
-    PropertyDef parseProperty();
+    PropertyDef parseProperty(bool PrivateProperty = false);
     PrivateSlotDef parsePrivateSlot();
 };
 

@@ -508,13 +508,20 @@ void Generator::GenerateMetaCall()
                 return;
 
             //FIXME: enums case
-            OS << "*reinterpret_cast< " << p.type << "*>(_a[0]) = ";
-            if (p.inPrivateClass.size())
-                OS << p.inPrivateClass << "->" ;
-            if (!p.read.empty())
-                OS << p.read << "(); ";
-            else
-                OS << p.member << "; ";
+            if (p.PointerHack) {
+              OS << "_a[0] = const_cast<void*>(static_cast<const void*>(";
+              if (p.inPrivateClass.size())
+                  OS << p.inPrivateClass << "->" ;
+              OS << p.read << "())); ";
+            } else {
+              OS << "*reinterpret_cast< " << p.type << "*>(_a[0]) = ";
+              if (p.inPrivateClass.size())
+                  OS << p.inPrivateClass << "->" ;
+              if (!p.read.empty())
+                  OS << p.read << "(); ";
+              else
+                  OS << p.member << "; ";
+            }
         });
         OS << " else ";
         HandleProperty(needSet, "WriteProperty", [&](const PropertyDef &p) {

@@ -51,6 +51,7 @@ struct PropertyDef {
     bool isEnum = false;
 
     int revision = 0;
+    bool PointerHack = false; // If the READ method returns a pointer to the type
 };
 
 

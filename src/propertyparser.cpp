@@ -309,7 +309,7 @@ std::string PropertyParser::parseType(bool SupressDiagnostics) {
     return Result;
 }
 
-PropertyDef PropertyParser::parseProperty() {
+PropertyDef PropertyParser::parseProperty(bool PrivateProperty) {
     PropertyDef Def;
     Consume();
     std::string type = parseType(false);
@@ -369,10 +369,12 @@ PropertyDef PropertyParser::parseProperty() {
         }
 
         std::string v, v2;
+        bool IsIdent = false;
         clang::SourceLocation ParamLoc = OriginalLocation(CurrentTok.getLocation());
         if (CurrentTok.getKind() == clang::tok::l_paren) {
             v = LexemUntil(clang::tok::r_paren);
         } else if (Test(clang::tok::identifier)) {
+            IsIdent = true;
             v = Spelling();
             if (CurrentTok.getKind() == clang::tok::l_paren) {
                 v2 = LexemUntil(clang::tok::r_paren);
@@ -390,9 +392,30 @@ PropertyDef PropertyParser::parseProperty() {
 
         if (l == "MEMBER")
             Def.member = v;
-        else if (l == "READ")
+        else if (l == "READ") {
             Def.read = v;
-        else if (l == "RESET")
+            if (IsIdent && !PrivateProperty) {
+                clang::LookupResult Found(Sema, PP.getIdentifierInfo(v), ParamLoc, clang::Sema::LookupMemberName);
+                Sema.LookupName(Found, Sema.getScopeForContext(RD));
+                if (Found.empty()) {
+                    PP.getDiagnostics().Report(ParamLoc,
+                              PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
+                              "READ function %0 not found")) << Found.getLookupName();
+
+                } else if (!Found.isAmbiguous()) {
+                    clang::CXXMethodDecl* M = Found.getAsSingle<clang::CXXMethodDecl>();
+                    if (M) {
+                        clang::QualType T = M->getResultType();
+                        if (T->isPointerType() && type.back() != '*') {
+                          clang::PrintingPolicy PrPo(PP.getLangOpts());
+                          PrPo.SuppressTagKeyword = true;
+                          if (T->getPointeeType().getUnqualifiedType().getAsString(PrPo) == type)
+                            Def.PointerHack = true;
+                        }
+                    }
+                }
+            } //FIXME: else
+        } else if (l == "RESET")
             Def.reset = v + v2;
         else if (l == "SCRIPTABLE")
             Def.scriptable = v + v2;
@@ -406,7 +429,7 @@ PropertyDef PropertyParser::parseProperty() {
             Def.editable = v + v2;
         else if (l == "NOTIFY") {
             Def.notify.Str = v;
-            Def.notify.Loc =  ParamLoc;
+            Def.notify.Loc = ParamLoc;
         } else if (l == "USER")
             Def.user = v + v2;
         else {

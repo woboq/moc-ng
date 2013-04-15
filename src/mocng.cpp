@@ -241,7 +241,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                         PropertyParser Parser(Val2->getString(),
                                               Val2->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
                                               Sema, Def.Record);
-                        PropertyDef P = Parser.parseProperty();
+                        PropertyDef P = Parser.parseProperty(true);
                         P.inPrivateClass = Val1->getString();
                         Def.Properties.push_back(std::move(P));
                         Def.addExtra(Parser.Extra);
