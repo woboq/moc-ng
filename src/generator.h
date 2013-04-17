@@ -18,6 +18,7 @@ class QualType;
 }
 
 #include <clang/AST/PrettyPrinter.h>
+#include "mocng.h"
 
 struct ClassDef;
 
@@ -92,8 +93,10 @@ class Generator {
     clang::ASTContext &Ctx;
     clang::PrintingPolicy PrintPolicy;
 
+    const MocNg::MetaTypeSet *MTS;
+
 public:
-    Generator(const ClassDef *CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx);
+    Generator(const ClassDef *CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, const MocNg::MetaTypeSet *MTS);
 
     void GenerateCode();
 private:

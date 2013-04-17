@@ -196,8 +196,8 @@ void Generator::GenerateFunctionParameters(const std::vector< T* >& V, const cha
 
 
 
-Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx) :
-    CDef(CDef), OS(OS), Ctx(Ctx), PrintPolicy(Ctx.getPrintingPolicy())
+Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, const MocNg::MetaTypeSet *MTS) :
+    CDef(CDef), OS(OS), Ctx(Ctx), PrintPolicy(Ctx.getPrintingPolicy()), MTS(MTS)
 {
     QualName = CDef->Record->getQualifiedNameAsString();
 
@@ -694,6 +694,12 @@ void Generator::GenerateStaticMetaCall()
                 || (RD && !RD->hasDefinition())) {
                 return;
             }
+            if (T->isPointerType() && MTS && !MTS->count(T->getCanonicalTypeUnqualified().getTypePtr())) {
+                // registering pointer to forward declared type fails.
+                const clang::CXXRecordDecl* Pointee = T->getPointeeCXXRecordDecl();
+                if (Pointee && !Pointee->hasDefinition())
+                    return ;
+            }
             OS << "       case 0x";
             OS.write_hex(Idx);
             OS << ": *reinterpret_cast<int*>(_a[0]) = ";
@@ -761,7 +767,14 @@ void Generator::GenerateStaticMetaCall()
         //FIXME: optimize (group same properties, and don't generate for builtin
         int Idx = 0;
         for (const PropertyDef &P: CDef->Properties) {
-            OS << "        case " << (Idx++) << ": *reinterpret_cast<int*>(_a[0]) = QtPrivate::QMetaTypeIdHelper<"
+            int OldIdx = Idx++;
+            if (P.PossiblyForwardDeclared) {
+                if (!std::any_of(MTS->begin(), MTS->end(), [&](const clang::Type*T){
+                    return clang::QualType(T,0).getAsString(PrintPolicy) == P.type;
+                } ))
+                    continue;
+            }
+            OS << "        case " << OldIdx << ": *reinterpret_cast<int*>(_a[0]) = QtPrivate::QMetaTypeIdHelper<"
                << P.type << " >::qt_metatype_id(); break;\n";
         }
         OS << "        }\n";

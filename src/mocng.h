@@ -23,6 +23,7 @@ class EnumDecl;
 class Preprocessor;
 class Sema;
 class TypeDecl;
+class Type;
 }
 
 struct NotifyDef {
@@ -52,6 +53,7 @@ struct PropertyDef {
 
     int revision = 0;
     bool PointerHack = false; // If the READ method returns a pointer to the type
+    bool PossiblyForwardDeclared = false;  //if the type is only forward declared
 };
 
 
@@ -103,7 +105,7 @@ struct ClassDef {
 class MocNg {
 public:
 
-    typedef std::set<const clang::TypeDecl*> MetaTypeSet;
+    typedef std::set<const clang::Type*> MetaTypeSet;
     MetaTypeSet registered_meta_type;
 
     typedef std::unordered_map<std::string, const clang::CXXRecordDecl*> InterfaceMap;

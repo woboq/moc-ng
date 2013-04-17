@@ -7,6 +7,8 @@
 
 #include "propertyparser.h"
 #include <clang/Sema/Lookup.h>
+#include <clang/AST/CanonicalType.h>
+#include <iostream>
 
 std::string PropertyParser::LexemUntil(clang::tok::TokenKind Until, bool Templ) {
     int ParensLevel = 0;
@@ -272,8 +274,22 @@ std::string PropertyParser::parseType(bool SupressDiagnostics) {
 
                 /*if (!R)
                     IsEnum = false;*/
-                if (R && MTS && MTS->count(R))
+                if (R && MTS && MTS->count(R->getTypeForDecl()->getCanonicalTypeUnqualified().getTypePtr()))
                     Extra = nullptr;
+
+                if (!R) {
+                    clang::CXXRecordDecl* D = Found.getAsSingle<clang::CXXRecordDecl>();
+                    if (D && !D->hasDefinition())
+                        IsPossiblyForwardDeclared = true;
+                }
+            } else if (SS.isEmpty()) {
+                clang::LookupResult Found(Sema, PrevToken.getIdentifierInfo(), OriginalLocation(),
+                                          clang::Sema::LookupNestedNameSpecifierName);
+                Sema.LookupName(Found, Sema.getScopeForContext(RD));
+                clang::CXXRecordDecl* D = Found.getAsSingle<clang::CXXRecordDecl>();
+                if (D && !D->hasDefinition()) {
+                    IsPossiblyForwardDeclared = true;
+                }
             }
         }
     }
@@ -317,6 +333,8 @@ PropertyDef PropertyParser::parseProperty(bool PrivateProperty) {
         //Error
         return Def;
     }
+
+    Def.PossiblyForwardDeclared = IsPossiblyForwardDeclared;
 
     // Special logic in moc
     if (type == "QMap")

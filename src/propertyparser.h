@@ -31,6 +31,7 @@ class PropertyParser {
     const MocNg::MetaTypeSet *MTS = nullptr;
 
     bool IsEnum = false;
+    bool IsPossiblyForwardDeclared = false;
 
 public:
 

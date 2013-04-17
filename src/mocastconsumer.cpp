@@ -30,9 +30,7 @@ void MocASTConsumer::HandleTagDeclDefinition(clang::TagDecl* D)
 
     clang::ClassTemplateSpecializationDecl* TD = llvm::dyn_cast<clang::ClassTemplateSpecializationDecl>(RD);
     if (TD && TD->getIdentifier() && TD->getName() == "QMetaTypeId" && TD->getTemplateArgs().size() == 1) {
-        const clang::EnumType* ET = TD->getTemplateArgs().get(0).getAsType()->getAs<clang::EnumType>();
-        if (ET)
-            Moc.registered_meta_type.insert(ET->getDecl());
+        Moc.registered_meta_type.insert(TD->getTemplateArgs().get(0).getAsType()->getCanonicalTypeUnqualified().getTypePtr());
     }
 
 

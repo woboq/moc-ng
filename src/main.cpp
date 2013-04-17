@@ -211,7 +211,7 @@ struct MocNGASTConsumer : public MocASTConsumer {
 
 
         for (const ClassDef &Def : objects ) {
-          Generator G(&Def, Out, Ctx);
+          Generator G(&Def, Out, Ctx, &Moc.registered_meta_type);
           G.GenerateCode();
         };
 
