@@ -10,7 +10,7 @@
 #include <clang/Driver/Driver.h>
 #include <clang/Driver/Compilation.h>
 #include <clang/Driver/Tool.h>
-
+#include <clang/Basic/DiagnosticIDs.h>
 
 #include <clang/Driver/Job.h>
 #include "clang/Frontend/TextDiagnosticPrinter.h"
@@ -104,6 +104,56 @@ struct MocOptions {
 } Options;
 
 
+struct MocDiagConsumer : clang::DiagnosticConsumer {
+    llvm::OwningPtr<DiagnosticConsumer> Proxy;
+    MocDiagConsumer(DiagnosticConsumer *Previous) : Proxy(Previous)  {}
+
+    int HadRealError = 0;
+
+    DiagnosticConsumer* clone(clang::DiagnosticsEngine& Diags) const override {
+        return new MocDiagConsumer { Proxy->clone(Diags) };
+    }
+    void BeginSourceFile(const clang::LangOptions& LangOpts, const clang::Preprocessor* PP = 0) override {
+        Proxy->BeginSourceFile(LangOpts, PP);
+    }
+    void clear() override {
+        Proxy->clear();
+    }
+    void EndSourceFile() override {
+        Proxy->EndSourceFile();
+    }
+    void finish() override {
+        Proxy->finish();
+    }
+    void HandleDiagnostic(clang::DiagnosticsEngine::Level DiagLevel, const clang::Diagnostic& Info) override {
+
+        auto DiagId = Info.getID();
+        auto Cat = Info.getDiags()->getDiagnosticIDs()->getCategoryNumberForDiag(DiagId);
+
+        bool ShouldReset = false;
+
+//        std::cerr << "Category : " << Cat << std::endl;
+        if (DiagLevel >= clang::DiagnosticsEngine::Error ) {
+            if (Cat == 2 || Cat == 4 || DiagId == clang::diag::err_param_redefinition ) {
+                if (!HadRealError)
+                    ShouldReset = true;
+                DiagLevel = clang::DiagnosticsEngine::Warning;
+            } else {
+                HadRealError++;
+            }
+        }
+
+        DiagnosticConsumer::HandleDiagnostic(DiagLevel, Info);
+        Proxy->HandleDiagnostic(DiagLevel, Info);
+
+        if (ShouldReset) {
+            // FIXME:  is there another way to ignore errors?
+            const_cast<clang::DiagnosticsEngine *>(Info.getDiags())->Reset();
+        }
+    }
+};
+
+
 
 struct MocNGASTConsumer : public MocASTConsumer {
     std::string InFile;
@@ -120,7 +170,7 @@ struct MocNGASTConsumer : public MocASTConsumer {
     void HandleTranslationUnit(clang::ASTContext& Ctx) override {
 
         if (ci.getDiagnostics().hasErrorOccurred())
-          return;
+            return;
 
         if (!objects.size()) {
           ci.getDiagnostics().Report(ci.getSourceManager().getLocForStartOfFile(ci.getSourceManager().getMainFileID()),
@@ -131,8 +181,8 @@ struct MocNGASTConsumer : public MocASTConsumer {
           return;
         }
 
-
         llvm::raw_ostream *OS = ci.createOutputFile(Options.Output, false);
+
         if (!OS) return;
         llvm::raw_ostream &Out = *OS;
 
@@ -186,6 +236,9 @@ protected:
         CI.getLangOpts().CPlusPlus11 = true;
         CI.getLangOpts().CPlusPlus1y = true;
         CI.getLangOpts().GNUMode = true;
+
+        CI.getDiagnostics().setClient(new MocDiagConsumer{CI.getDiagnostics().takeClient()});
+
 
         return new MocNGASTConsumer(CI, InFile);
     }
