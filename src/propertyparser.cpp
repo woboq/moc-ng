@@ -290,6 +290,7 @@ std::string PropertyParser::parseType(bool SupressDiagnostics) {
                 if (D && !D->hasDefinition()) {
                     IsPossiblyForwardDeclared = true;
                 }
+                Found.suppressDiagnostics();
             }
         }
     }
@@ -414,7 +415,7 @@ PropertyDef PropertyParser::parseProperty(bool PrivateProperty) {
             Def.read = v;
             if (IsIdent && !PrivateProperty) {
                 clang::LookupResult Found(Sema, PP.getIdentifierInfo(v), ParamLoc, clang::Sema::LookupMemberName);
-                Sema.LookupName(Found, Sema.getScopeForContext(RD));
+                Sema.LookupQualifiedName(Found, RD);
                 if (Found.empty()) {
                     PP.getDiagnostics().Report(ParamLoc,
                               PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
@@ -432,6 +433,7 @@ PropertyDef PropertyParser::parseProperty(bool PrivateProperty) {
                         }
                     }
                 }
+                Found.suppressDiagnostics();
             } //FIXME: else
         } else if (l == "RESET")
             Def.reset = v + v2;
