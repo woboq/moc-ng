@@ -427,8 +427,10 @@ void Generator::GenerateCode()
             OS << "    if (!qstrcmp(_clname, qobject_interface_iid< " << Itrf << " *>()))\n"
                   "        return static_cast< " << Itrf << "  *>(const_cast<" <<  QualName << "*>(this));\n";
         }
-        OS << "    return "<< BaseName <<"::qt_metacast(_clname);\n"
-              "}\n";
+
+        if (BaseName.empty()) OS << "    return 0;\n}\n";
+        else OS << "    return "<< BaseName <<"::qt_metacast(_clname);\n"
+                   "}\n";
 
         GenerateMetaCall();
         GenerateStaticMetaCall();
@@ -444,11 +446,12 @@ void Generator::GenerateCode()
 
 void Generator::GenerateMetaCall()
 {
-    OS << "\nint " << QualName << "::qt_metacall(QMetaObject::Call _c, int _id, void **_a)\n{\n"
-          "    _id = " << BaseName << "::qt_metacall(_c, _id, _a);\n"
-          "    if (_id < 0)\n"
-          "        return _id;\n";
-//          "    ";
+    OS << "\nint " << QualName << "::qt_metacall(QMetaObject::Call _c, int _id, void **_a)\n{\n";
+    if (!BaseName.empty()) {
+        OS << "    _id = " << BaseName << "::qt_metacall(_c, _id, _a);\n"
+              "    if (_id < 0)\n"
+              "        return _id;\n";
+    }
 
     if (MethodCount) {
         OS << "    if (_c == QMetaObject::InvokeMetaMethod || _c == QMetaObject::RegisterMethodArgumentMetaType) {\n"
