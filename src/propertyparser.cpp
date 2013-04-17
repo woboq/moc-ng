@@ -86,6 +86,7 @@ std::string PropertyParser::parseTemplateType() {
     int ParensLevel = 0;
     bool MoveConstToFront = true;
     bool HasConst = false;
+    clang::CXXScopeSpec SS;
     do {
         switch(+CurrentTok.getKind()) {
         case clang::tok::eof:
@@ -151,6 +152,20 @@ std::string PropertyParser::parseTemplateType() {
         case clang::tok::ampamp:
         case clang::tok::star:
             MoveConstToFront = false;
+            break;
+        case clang::tok::identifier: {
+            clang::LookupResult Found(Sema, CurrentTok.getIdentifierInfo(), OriginalLocation(CurrentTok.getLocation()),
+                                      clang::Sema::LookupNestedNameSpecifierName);
+            Sema.LookupParsedName(Found, Sema.getScopeForContext(RD), &SS);
+            clang::CXXRecordDecl* D = Found.getAsSingle<clang::CXXRecordDecl>();
+            if (D && !D->hasDefinition())
+                IsPossiblyForwardDeclared = true;
+            Found.suppressDiagnostics();
+            break;
+          }
+        case clang::tok::coloncolon:
+            if (PrevToken.getIdentifierInfo())
+                SS.Extend(Sema.getASTContext(), PrevToken.getIdentifierInfo(), OriginalLocation(), OriginalLocation(CurrentTok.getLocation()));
             break;
         }
 
