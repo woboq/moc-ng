@@ -8,11 +8,14 @@
 #include "propertyparser.h"
 
 #include <clang/Lex/Preprocessor.h>
+#include <clang/Lex/LiteralSupport.h>
+
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/DeclTemplate.h>
 #include <clang/AST/Type.h>
 #include <clang/Sema/Sema.h>
 #include <clang/Sema/Lookup.h>
+#include <llvm/ADT/SmallVector.h>
 
 #include <iostream>
 #include <unordered_set>
@@ -88,6 +91,59 @@ static void parseInterfaces(ClassDef &Def, clang::Expr *Content, clang::Sema &Se
 }
 
 
+static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema &Sema) {
+    clang::Preprocessor &PP = Sema.getPreprocessor();
+    clang::StringLiteral *Val = llvm::dyn_cast<clang::StringLiteral>(Content);
+    if (!Val) {
+        PP.getDiagnostics().Report(Content->getExprLoc(),
+                                   PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                                                       "Invalid Q_PLUGIN_METADATA annotation"));
+        return;
+    }
+
+    llvm::MemoryBuffer* Buf = llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_PLUGIN_METADATA");
+    clang::Lexer Lex(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Content->getExprLoc()),
+                     Buf, PP.getSourceManager(), PP.getLangOpts());
+
+    clang::Token Tok;
+    Lex.LexFromRawLexer(Tok);
+    while (Tok.is(clang::tok::raw_identifier)) {
+        clang::IdentifierInfo *II =  PP.LookUpIdentifierInfo(Tok);
+        if (II->getName() != "IID" && II->getName() != "FILE") {
+            Lex.LexFromRawLexer(Tok);
+            continue;
+        }
+
+        Lex.LexFromRawLexer(Tok);
+        if (!Tok.is(clang::tok::string_literal)) {
+            PP.getDiagnostics().Report(GetFromLiteral(Tok, Val, PP),
+                        PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                                            "Expected string literal"));
+            return;
+        }
+
+        llvm::SmallVector<clang::Token, 4> StrToks;
+        do {
+            StrToks.push_back(Tok);
+            Lex.LexFromRawLexer(Tok);
+        } while (Tok.is(clang::tok::string_literal));
+        clang::StringLiteralParser Literal(&StrToks[0], StrToks.size(), PP);
+        if (Literal.hadError)
+            return;
+
+        if (II->getName() == "IID")
+            Def.Plugin.IID = Literal.GetString();
+        else
+            Def.Plugin.File = Literal.GetString();
+     }
+
+     if (!Tok.is(clang::tok::eof)) {
+         PP.getDiagnostics().Report(GetFromLiteral(Tok, Val, PP),
+                                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                                                        "Parse error: Expected 'IID' or 'FILE'"));
+         return;
+     }
+}
 
 
 
@@ -280,6 +336,8 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                     }
                 } else if (key == "qt_interfaces") {
                     parseInterfaces(Def, PE->getSubExpr(), Sema);
+                } else if (key == "qt_plugin_metadata") {
+                    parsePluginMetaData(Def, PE->getSubExpr(), Sema);
                 }
             }
         } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {

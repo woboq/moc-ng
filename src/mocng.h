@@ -56,6 +56,11 @@ struct PropertyDef {
     bool PossiblyForwardDeclared = false;  //if the type is only forward declared
 };
 
+struct PluginData {
+    std::string IID;
+    std::string File;
+};
+
 
 struct ClassDef {
 
@@ -88,6 +93,7 @@ struct ClassDef {
 
     std::vector<std::string> Interfaces;
     std::vector<std::pair<std::string, std::string>> ClassInfo;
+    PluginData Plugin;
 
     std::vector<PropertyDef> Properties;
 
@@ -98,8 +104,7 @@ struct ClassDef {
     int PrivateSlotCount = 0;
     int RevisionPropertyCount = 0;
     int RevisionMethodCount = 0;
-    //TODO: PluginData;
-    //TODO: FLagAliases;
+
 };
 
 class MocNg {
