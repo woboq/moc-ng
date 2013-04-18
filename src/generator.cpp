@@ -398,6 +398,12 @@ void Generator::GenerateCode()
 
     }
 
+    if (IsQtNamespace) {
+        OS << "\nconst QMetaObject QObject::staticQtMetaObject = {\n"
+              "    { 0, qt_meta_stringdata_Qt.data, qt_meta_data_Qt, 0, 0, 0 }\n};\n";
+        return;
+    }
+
     OS << "\nconst QMetaObject " << QualName << "::staticMetaObject = {\n"
           "    { ";
     if (BaseName.empty()) OS << "0";

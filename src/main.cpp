@@ -24,6 +24,7 @@
 
 #include "mocastconsumer.h"
 #include "generator.h"
+#include "mocppcallbacks.h"
 
 #if 0
 namespace Options {
@@ -157,7 +158,25 @@ struct MocDiagConsumer : clang::DiagnosticConsumer {
 
 struct MocNGASTConsumer : public MocASTConsumer {
     std::string InFile;
-    MocNGASTConsumer(clang::CompilerInstance& ci, llvm::StringRef InFile) : MocASTConsumer(ci), InFile(InFile) {}
+    MocNGASTConsumer(clang::CompilerInstance& ci, llvm::StringRef InFile) : MocASTConsumer(ci), InFile(InFile) { }
+
+    void Initialize(clang::ASTContext& Ctx) override {
+        MocASTConsumer::Initialize(Ctx);
+
+        if (llvm::StringRef(InFile).endswith("global/qnamespace.h")) {
+            std::cerr << std::string(InFile) << std::endl;
+            clang::Preprocessor &PP = ci.getPreprocessor();
+            clang::MacroInfo *MI = PP.AllocateMacroInfo({});
+            MI->setIsBuiltinMacro();
+#if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
+            PP.appendDefMacroDirective(PP.getIdentifierInfo("Q_MOC_RUN"), MI);
+#else
+            PP.setMacroInfo(PP.getIdentifierInfo("Q_MOC_RUN"), MI);
+#endif
+            PPCallbacks->InjectQObjectDefs({});
+        }
+
+    }
 
     void HandleTagDeclDefinition(clang::TagDecl* D) override {
         auto SL = D->getSourceRange().getBegin();
@@ -212,6 +231,8 @@ struct MocNGASTConsumer : public MocASTConsumer {
 
         for (const ClassDef &Def : objects ) {
           Generator G(&Def, Out, Ctx, &Moc.registered_meta_type);
+          if (llvm::StringRef(InFile).endswith("global/qnamespace.h"))
+              G.IsQtNamespace = true;
           G.GenerateCode();
         };
 
@@ -238,7 +259,6 @@ protected:
         CI.getLangOpts().GNUMode = true;
 
         CI.getDiagnostics().setClient(new MocDiagConsumer{CI.getDiagnostics().takeClient()});
-
 
         return new MocNGASTConsumer(CI, InFile);
     }

@@ -1,7 +1,7 @@
 //#include <QtCore/qobjectdefs.h>
 
 const char Injected[] = R"-(
-#ifdef Q_MOC_OUTPUT_REVISION
+#if defined(Q_MOC_OUTPUT_REVISION) || defined(Q_MOC_RUN)
 
 #define QT_ANNOTATE_CLASS(type, anotation) \
     __extension__ _Static_assert(sizeof (#anotation), #type);
@@ -72,6 +72,11 @@ public: \
 private: \
     QT_ANNOTATE_CLASS(qt_qgadget, "")
 
+//for qnamespace.h because Q_MOC_RUN is defined
+#if defined(Q_MOC_RUN)
+#undef Q_OBJECT
+#define Q_OBJECT QT_ANNOTATE_CLASS(qt_qobject, "")
+#endif
 
 #undef Q_OBJECT_FAKE
 #define Q_OBJECT_FAKE Q_OBJECT QT_ANNOTATE_CLASS(qt_fake, "")

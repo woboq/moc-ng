@@ -12,7 +12,6 @@ class MocPPCallbacks : public clang::PPCallbacks {
 
     bool IncludeNotFoundSupressed = false;
 
-    void InjectQObjectDefs(clang::SourceLocation Loc);
 
 public:
 
@@ -81,4 +80,5 @@ public:
         return false;
     }
 
+    void InjectQObjectDefs(clang::SourceLocation Loc);
 };

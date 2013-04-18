@@ -98,6 +98,8 @@ class Generator {
 public:
     Generator(const ClassDef *CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, const MocNg::MetaTypeSet *MTS);
 
+    bool IsQtNamespace = false;
+
     void GenerateCode();
 private:
 
