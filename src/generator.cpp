@@ -199,9 +199,11 @@ void Generator::GenerateFunctionParameters(const std::vector< T* >& V, const cha
 Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, const MocNg::MetaTypeSet *MTS) :
     CDef(CDef), OS(OS), Ctx(Ctx), PrintPolicy(Ctx.getPrintingPolicy()), MTS(MTS)
 {
-    QualName = CDef->Record->getQualifiedNameAsString();
-
     PrintPolicy.SuppressTagKeyword = true;
+    PrintPolicy.SuppressUnwrittenScope = true;
+    PrintPolicy.AnonymousTagLocations = false;
+
+    QualName = clang::QualType(CDef->Record->getTypeForDecl(), 0).getAsString(PrintPolicy);
 
     if (CDef->Record->getNumBases())
         BaseName = CDef->Record->bases_begin()->getType().getAsString(PrintPolicy);
@@ -813,7 +815,7 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
         return;
 
     OS << "\n// SIGNAL " << Idx << "\n"
-       << MD->getResultType().getAsString(PrintPolicy) << " " << MD->getQualifiedNameAsString() + "(";
+       << MD->getResultType().getAsString(PrintPolicy) << " " << QualName << "::" << MD->getName() + "(";
     for (int j = 0 ; j < MD->getNumParams(); ++j) {
         if (j) OS << ",";
         OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy);
