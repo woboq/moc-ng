@@ -7,6 +7,7 @@
 
 #include "generator.h"
 #include "mocng.h"
+#include "qbjs.h"
 #include <string>
 #include <type_traits>
 #include <clang/AST/DeclCXX.h>
@@ -450,6 +451,16 @@ void Generator::GenerateCode()
         }
     }
 
+    if (!CDef->Plugin.IID.empty()) {
+        OS << "\nQT_PLUGIN_METADATA_SECTION const uint qt_section_alignment_dummy = 42;\n"
+              "#ifdef QT_NO_DEBUG\n";
+        GeneratePluginMetaData(false);
+        OS << "#else\n";
+        GeneratePluginMetaData(true);
+        OS << "#endif\n";
+
+        OS << "QT_MOC_EXPORT_PLUGIN(" << QualName << ", " << CDef->Record->getName() << ")\n\n";
+    }
 }
 
 void Generator::GenerateMetaCall()
@@ -972,4 +983,21 @@ int Generator::StrIdx(llvm::StringRef Str)
     return Strings.size() - 1;
 }
 
+void Generator::GeneratePluginMetaData(bool Debug)
+{
+    QBJS::Value Data;
+    Data.T = QBJS::Object;
+    Data.Props["IID"] = CDef->Plugin.IID;
+    Data.Props["className"] = CDef->Record->getNameAsString();
+    Data.Props["version"] = double(QT_VERSION);
+    Data.Props["MetaData"].T = QBJS::Object;
+    Data.Props["debug"] = Debug;
+    OS << "QT_PLUGIN_METADATA_SECTION\n"
+          "static const unsigned char qt_pluginMetaData[] = {\n"
+          "    'Q', 'T', 'M', 'E', 'T', 'A', 'D', 'A', 'T', 'A', ' ', ' ',\n"
+          "    'q', 'b', 'j', 's', 0x1, 0, 0, 0,\n    ";
+    QBJS::Stream JSON(OS);
+    JSON << Data;
+    OS << "\n};\n";
+}
 

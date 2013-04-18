@@ -75,7 +75,8 @@ enum MetaDataFlags {
 
 enum { OutputRevision = 7,
        MetaObjectPrivateFieldCount = 14, //  = sizeof(QMetaObjectPrivate) / sizeof(int)
-       mocOutputRevision = 67
+       mocOutputRevision = 67,
+       QT_VERSION = 0x050100
 };
 
 #define MOCNG_VERSION_STR "alpha 1"
@@ -116,4 +117,5 @@ private:
 
     void GetTypeInfo(clang::QualType Type);
     void GenerateEnums(int EnumIndex);
+    void GeneratePluginMetaData(bool Debug);
 };

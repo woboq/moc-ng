@@ -10,7 +10,7 @@ Find_Package(Clang REQUIRED)
 include_directories(${CLANG_INCLUDE_DIRS})
 
 
-add_library(mocng_plugin SHARED plugin.cpp mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp)
+add_library(mocng_plugin SHARED plugin.cpp mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp qbjs.cpp)
 
 target_link_libraries(mocng_plugin  ${CLANG_LIBS} ${LLVM_LIBS_CORE} )
 
@@ -20,7 +20,7 @@ set_target_properties(mocng_plugin PROPERTIES
          SOVERSION 1.0)
 
 
-add_executable(moc  main.cpp mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp)
+add_executable(moc  main.cpp mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp qbjs.cpp)
 target_link_libraries(moc   ${CLANG_LIBS} ${LLVM_LIBS_CORE} ${LLVM_LDFLAGS} )
 
 
