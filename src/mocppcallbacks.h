@@ -42,43 +42,9 @@ public:
         }
     }
 
-
-    virtual void FileChanged(clang::SourceLocation Loc, FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType,
-                             clang::FileID PrevFID) override {
-
-        clang::SourceManager &SM = PP.getSourceManager();
-        IsInMainFile = (SM.getFileID(SM.getFileLoc(Loc)) == SM.getMainFileID());
-
-
-        if (Reason != ExitFile)
-            return;
-        auto F = PP.getSourceManager().getFileEntryForID(PrevFID);
-        if (!F)
-            return;
-
-        llvm::StringRef name = F->getName();
-        if (name.endswith("qobjectdefs.h")) {
-            InjectQObjectDefs(Loc);
-        }
-    }
-
-
-    virtual bool FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl< char >& RecoveryPath) override
-    {
-        //std::cout << "FILE NOT FOUND " << std::string(FileName) << std::endl;
-        if (FileName.endswith(".moc") || FileName.endswith("_moc.cpp") || FileName.startswith("moc_")) {
-            if (!PP.GetSuppressIncludeNotFoundError()) {
-                PP.SetSuppressIncludeNotFoundError(true);
-                IncludeNotFoundSupressed = true;
-            }
-        } else {
-            if (IncludeNotFoundSupressed) {
-                PP.SetSuppressIncludeNotFoundError(false);
-                IncludeNotFoundSupressed = false;
-            }
-        }
-        return false;
-    }
+    void FileChanged(clang::SourceLocation Loc, FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType,
+                             clang::FileID PrevFID) override;
+    bool FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl< char >& RecoveryPath) override;
 
     void InjectQObjectDefs(clang::SourceLocation Loc);
 };
