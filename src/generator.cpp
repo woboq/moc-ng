@@ -432,6 +432,16 @@ void Generator::GenerateCode()
               "    if (!strcmp(_clname, qt_meta_stringdata_" << QualifiedClassNameIdentifier << ".stringdata))\n"
               "        return static_cast<void*>(this);\n";
 
+        if (CDef->Record->getNumBases() > 1) {
+            for (auto BaseIt = CDef->Record->bases_begin()+1; BaseIt != CDef->Record->bases_end(); ++BaseIt) {
+                if (BaseIt->getAccessSpecifier() == clang::AS_private)
+                    continue;
+                llvm::StringRef B = BaseIt->getType().getAsString(PrintPolicy);
+                OS << "    if (!qstrcmp(_clname, \"" << B << "\"))\n"
+                      "        return static_cast< " << B << "*>(this);\n";
+            }
+        }
+
         for (const auto &Itrf : CDef->Interfaces) {
             OS << "    if (!qstrcmp(_clname, qobject_interface_iid< " << Itrf << " *>()))\n"
                   "        return static_cast< " << Itrf << "  *>(const_cast<" <<  QualName << "*>(this));\n";
