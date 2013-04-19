@@ -712,7 +712,7 @@ void Generator::GenerateStaticMetaCall()
 
         auto RegisterT = [&](const clang::QualType T, unsigned int Idx) {
             const clang::CXXRecordDecl* RD = T->getPointeeCXXRecordDecl();
-            if (T->isVoidType() || (!T.isConstQualified() && T->isReferenceType())
+            if (T->isVoidType() || (T->isReferenceType() && !T.getNonReferenceType().isConstQualified())
                 || (RD && !RD->hasDefinition())) {
                 return;
             }
