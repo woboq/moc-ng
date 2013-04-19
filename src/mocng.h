@@ -14,6 +14,7 @@
 #include <set>
 #include <unordered_map>
 #include <clang/Basic/SourceLocation.h>
+#include "qbjs.h"
 
 namespace clang {
 class CXXMethodDecl;
@@ -58,7 +59,7 @@ struct PropertyDef {
 
 struct PluginData {
     std::string IID;
-    std::string File;
+    QBJS::Value MetaData;
 };
 
 

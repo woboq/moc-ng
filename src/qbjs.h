@@ -4,11 +4,19 @@
  * http://woboq.com/
  ****************************************************************************/
 
+// export to QBJS
+
+#pragma once
 
 #include <map>
 #include <string>
 
 namespace llvm {
+namespace yaml {
+
+class Node;
+}
+
 class raw_ostream;
 }
 
@@ -51,4 +59,6 @@ namespace QBJS {
         Stream &operator << (uint16_t);
         Stream &operator << (unsigned char);
     };
+
+    bool Parse(llvm::yaml::Node *Node, Value &Root);
 };

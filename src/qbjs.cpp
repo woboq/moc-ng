@@ -6,7 +6,12 @@
 
 #include "qbjs.h"
 #include <llvm/Support/raw_ostream.h>
+#include <llvm/Support/YAMLParser.h>
+#include <llvm/Support/Casting.h>
 #include <llvm/ADT/SmallVector.h>
+#include <llvm/ADT/Twine.h>
+
+#include <iostream>
 
 int QBJS::Value::ComputeSize() const
 {
@@ -123,6 +128,47 @@ QBJS::Stream& QBJS::Stream::operator<<(unsigned char C)
     }
     OS << " ";
     return *this;
+}
+
+
+bool QBJS::Parse(llvm::yaml::Node* Node, QBJS::Value& Root)
+{
+    if (!Node) return false;
+    if (llvm::yaml::SequenceNode *Array = llvm::dyn_cast<llvm::yaml::SequenceNode>(Node)) {
+        Root.T = Object; //FIXME
+        int idx = 0;
+        for (llvm::yaml::SequenceNode::iterator AI = Array->begin(), AE = Array->end();
+             AI != AE; ++AI) {
+            if (!Parse(AI, Root.Props[llvm::Twine(idx++).str()]))
+                return false;
+        }
+        return true;
+    } else if (llvm::yaml::MappingNode *Object = llvm::dyn_cast<llvm::yaml::MappingNode>(Node)) {
+        Root.T = QBJS::Object;
+        for (llvm::yaml::MappingNode::iterator KVI = Object->begin(), KVE = Object->end();
+             KVI != KVE; ++KVI) {
+
+            llvm::yaml::ScalarNode *KeyString = llvm::dyn_cast<llvm::yaml::ScalarNode>((*KVI).getKey());
+            if (!KeyString)
+                return false;
+            llvm::yaml::Node *Value = (*KVI).getValue();
+            if (!Value) return false;
+            llvm::SmallString<20> Storage;
+            if (!Parse(Value, Root.Props[KeyString->getValue(Storage)]))
+                return false;
+        }
+        return true;
+    } else if (llvm::yaml::ScalarNode *Scal = llvm::dyn_cast<llvm::yaml::ScalarNode>(Node)) {
+        llvm::SmallString<20> Storage;
+        Root = std::string(Scal->getValue(Storage));
+        // FIXME: integer
+        return true;
+    } else if (Node->getType() == llvm::yaml::Node::NK_Null) {
+        Root.T = Null;
+        return true;
+    } else {
+        return false;
+    }
 }
 
 

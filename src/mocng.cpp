@@ -6,9 +6,11 @@
 
 #include "mocng.h"
 #include "propertyparser.h"
+#include "qbjs.h"
 
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Lex/LiteralSupport.h>
+#include <clang/Lex/LexDiagnostic.h>
 
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/DeclTemplate.h>
@@ -16,9 +18,10 @@
 #include <clang/Sema/Sema.h>
 #include <clang/Sema/Lookup.h>
 #include <llvm/ADT/SmallVector.h>
+#include <llvm/Support/YAMLParser.h>
+#include <llvm/Support/SourceMgr.h>
 
 #include <iostream>
-#include <unordered_set>
 
 static clang::SourceLocation GetFromLiteral(clang::Token Tok, clang::StringLiteral *Lit, clang::Preprocessor &PP) {
     return Lit->getLocationOfByte(PP.getSourceManager().getFileOffset(Tok.getLocation()),
@@ -133,8 +136,27 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
 
         if (II->getName() == "IID")
             Def.Plugin.IID = Literal.GetString();
-        else
-            Def.Plugin.File = Literal.GetString();
+        else {
+            llvm::StringRef Filename = Literal.GetString();
+            const clang::DirectoryLookup *CurDir;
+            const clang::FileEntry *File = PP.LookupFile(Filename, false, nullptr, CurDir, nullptr, nullptr, nullptr);
+            if (!File) {
+                PP.getDiagnostics().Report(GetFromLiteral(StrToks.front(), Val, PP), clang::diag::err_pp_file_not_found)
+                    << Filename;
+                return;
+            }
+            const llvm::MemoryBuffer* JSonBuf = PP.getSourceManager().getMemoryBufferForFile(File);
+            llvm::SourceMgr SM;
+            llvm::yaml::Stream YAMLStream(JSonBuf->getBuffer(), SM);
+            llvm::yaml::document_iterator I = YAMLStream.begin();
+            if (I == YAMLStream.end() || !I->getRoot() || !QBJS::Parse(I->getRoot(), Def.Plugin.MetaData)) {
+                // FIXME
+                PP.getDiagnostics().Report(GetFromLiteral(Tok, Val, PP),
+                                            PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                            "Error pwhile parsing JSON"));
+                return;
+            }
+        }
      }
 
      if (!Tok.is(clang::tok::eof)) {
@@ -143,6 +165,7 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
                                                                         "Parse error: Expected 'IID' or 'FILE'"));
          return;
      }
+
 }
 
 
