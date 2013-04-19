@@ -11,6 +11,7 @@
 #include <clang/Driver/Compilation.h>
 #include <clang/Driver/Tool.h>
 #include <clang/Basic/DiagnosticIDs.h>
+#include <clang/Lex/LexDiagnostic.h>
 
 #include <clang/Driver/Job.h>
 #include "clang/Frontend/TextDiagnosticPrinter.h"
@@ -135,7 +136,9 @@ struct MocDiagConsumer : clang::DiagnosticConsumer {
 
 //        std::cerr << "Category : " << Cat << std::endl;
         if (DiagLevel >= clang::DiagnosticsEngine::Error ) {
-            if (Cat == 2 || Cat == 4 || DiagId == clang::diag::err_param_redefinition ) {
+            if (Cat == 2 || Cat == 4
+                || DiagId == clang::diag::err_param_redefinition
+                || DiagId == clang::diag::err_pp_expr_bad_token_binop ) {
                 if (!HadRealError)
                     ShouldReset = true;
                 DiagLevel = clang::DiagnosticsEngine::Warning;
