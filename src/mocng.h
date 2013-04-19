@@ -43,8 +43,8 @@ struct PrivateSlotDef {
 };
 
 struct PropertyDef {
-    std::string name, type, member, read, write, reset, designable, scriptable, editable, stored,
-                user, inPrivateClass;
+    std::string name, type, member, read, write, reset, designable = "true", scriptable = "true", editable, stored = "true",
+                user = "false", inPrivateClass;
     NotifyDef notify;
 
     bool constant = false;
