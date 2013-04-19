@@ -218,6 +218,8 @@ struct MocNGASTConsumer : public MocASTConsumer {
           }
           if (llvm::StringRef(InFile).endswith(".h"))
             Out << "#include \"" << InFile << "\"\n";
+          if (Moc.HasPlugin)
+            Out << "#include <QtCore/qplugin.h>\n";
         }
 
         Out << "#if !defined(Q_MOC_OUTPUT_REVISION)\n"

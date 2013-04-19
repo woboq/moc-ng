@@ -119,4 +119,6 @@ public:
 
     ClassDef parseClass (clang::CXXRecordDecl* RD, clang::Sema& Sema);
 
+    bool HasPlugin = false;
+
 };

@@ -361,6 +361,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                     parseInterfaces(Def, PE->getSubExpr(), Sema);
                 } else if (key == "qt_plugin_metadata") {
                     parsePluginMetaData(Def, PE->getSubExpr(), Sema);
+                    HasPlugin = true;
                 }
             }
         } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {
