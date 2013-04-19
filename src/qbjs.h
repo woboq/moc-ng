@@ -10,6 +10,7 @@
 
 #include <map>
 #include <string>
+#include <vector>
 
 namespace llvm {
 namespace yaml {
@@ -37,7 +38,8 @@ namespace QBJS {
         Value(double D) : T(Double) , D(D) {}
         Value(bool B) : T(Bool) , D(B ? 1. : -1.) {}
         Type T = Undefined;
-        std::map<std::string,Value> Props;
+        std::map<std::string,Value> Props; // for Object
+        std::vector<Value> Elems; // For Array
         std::string Str;
         double D = 0.;
         mutable int S = -1;
@@ -54,7 +56,7 @@ namespace QBJS {
     private:
         int Col = 0;
         llvm::raw_ostream &OS;
-        Stream &operator << (std::string);
+        Stream &operator << (const std::string &Str);
         Stream &operator << (uint32_t);
         Stream &operator << (uint16_t);
         Stream &operator << (unsigned char);

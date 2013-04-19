@@ -990,7 +990,7 @@ void Generator::GeneratePluginMetaData(bool Debug)
     Data.Props["IID"] = CDef->Plugin.IID;
     Data.Props["className"] = CDef->Record->getNameAsString();
     Data.Props["version"] = double(QT_VERSION);
-    Data.Props["MetaData"].T = QBJS::Object;
+    Data.Props["MetaData"] = CDef->Plugin.MetaData;
     Data.Props["debug"] = Debug;
     OS << "QT_PLUGIN_METADATA_SECTION\n"
           "static const unsigned char qt_pluginMetaData[] = {\n"

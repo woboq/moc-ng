@@ -13,31 +13,46 @@
 
 #include <iostream>
 
+static int StringSize(const std::string &Str) {
+    //FIXME: Unicode
+    return (2 + Str.size() + 3) & ~3;
+}
+
 int QBJS::Value::ComputeSize() const
 {
+    int D = 0;
     switch(T) {
         case Undefined: return 0;
         case Null: return 0;
         case Bool: return 0;
-        case String: return 2 + Str.size(); //FIXME: Unicode
+        case String: return StringSize(Str);
         case Double: return 8; // FIXME: int optimisation
         case Array:
+            for (const auto &E : Elems) D += E.Size() + 4;
+            return 12 + D;
         case Object:
-            break;
+            for (const auto &E : Props) {
+                D += StringSize(E.first);
+                D += E.second.Size() + 8;
+            }
+            return 12 + D;
         default:
             return -1;
     }
+}
 
-    //Object or Array;
-    int K = 0;
-    int D = 0;
-    for (const auto &E : Props) {
-        K += 2 + E.first.size(); // FIXME: unicode
-        D += E.second.Size();
+static uint32_t ComputeHeader(const QBJS::Value &V, int Off) {
+    using namespace QBJS;
+    uint32_t H = V.T & 0x7;
+    if (V.T == String)
+        H |= 1<<3; // FIXME: Unicode
+    if (V.T == Bool) {
+        if (V.D > 0)
+            H |= 1 << 5;
+    } else {
+        H |= uint32_t(Off << 5);
     }
-    if (T == Object)
-        D += K;
-    return 12 + 8 * Props.size() + D;
+    return H;
 }
 
 
@@ -45,44 +60,39 @@ QBJS::Stream& QBJS::Stream::operator<<(const QBJS::Value &V)
 {
     if (V.T == Undefined)
         return *this;
-    else if (V.T == Object || V.T==Array) {
-        llvm::SmallVector<int, 128> Table;
+    else if (V.T == Object) {
+        llvm::SmallVector<uint32_t, 128> Table;
 
         (*this) << uint32_t(V.Size());
-
-        uint32_t Len = V.Props.size() << 1;
-        if (V.T == Object)
-            Len |= 1;
-        (*this) << Len;
+        (*this) << uint32_t(1 | V.Props.size() << 1);
         (*this) << uint32_t(V.Size() - V.Props.size() * 4);
 
         uint32_t Off = 12;
         for (auto E : V.Props) {
             Table.push_back(Off);
-            uint32_t H = E.second.T & 0x7;
-            // FIXME: Unicode (for two cases)
-            if (E.second.T == String)
-                H |= 1<<3;
-            if (V.T == Object) {
-                H |= 1<<4;
-                Off += 2 + E.first.size();
-            }
-            Off += 4;
-            if (E.second.T == Bool) {
-                if (E.second.D > 0)
-                    H |= 1 << 5;
-            } else {
-                H |= uint32_t(Off << 5);
-            }
-            (*this) << H;
+            Off += 4 + StringSize(E.first);
+            uint32_t H = ComputeHeader(E.second, Off);
+            H |= 1<<4;
+            (*this) << H << E.first << E.second;
             Off += E.second.Size();
-            if (V.T == Object)
-                (*this) << E.first;
-            (*this) << E.second;
         }
-        for (uint32_t T : Table) {
+        for (uint32_t T : Table)
             (*this) << T;
+    } else if (V.T == Array) {
+        llvm::SmallVector<uint32_t, 128> Table;
+
+        (*this) << uint32_t(V.Size());
+        (*this) << uint32_t(V.Elems.size() << 1);
+        (*this) << uint32_t(V.Size() - V.Elems.size() * 4);
+
+        uint32_t Off = 12;
+        for (auto E : V.Elems) {
+            Table.push_back(ComputeHeader(E, Off));
+            (*this) << E;
+            Off += E.Size();
         }
+        for (uint32_t T : Table)
+            (*this) << T;
     } else if (V.T == Double) {
         // Hum Hum:
         uint64_t D;
@@ -95,10 +105,12 @@ QBJS::Stream& QBJS::Stream::operator<<(const QBJS::Value &V)
     return *this;
 }
 
-QBJS::Stream& QBJS::Stream::operator<<(std::string Str)
+QBJS::Stream& QBJS::Stream::operator<<(const std::string &Str)
 {
     (*this) << uint16_t(Str.size());
     for (unsigned char S : Str) (*this) << S;
+    for (int I = Str.size() + 2; (I % 4)!=0 ;++I)
+        (*this) << (unsigned char)('\0'); //Padding;
     return *this;
 }
 
@@ -135,11 +147,11 @@ bool QBJS::Parse(llvm::yaml::Node* Node, QBJS::Value& Root)
 {
     if (!Node) return false;
     if (llvm::yaml::SequenceNode *Array = llvm::dyn_cast<llvm::yaml::SequenceNode>(Node)) {
-        Root.T = Object; //FIXME
-        int idx = 0;
+        Root.T = QBJS::Array;
         for (llvm::yaml::SequenceNode::iterator AI = Array->begin(), AE = Array->end();
              AI != AE; ++AI) {
-            if (!Parse(AI, Root.Props[llvm::Twine(idx++).str()]))
+            Root.Elems.emplace_back();
+            if (!Parse(AI, Root.Elems.back()))
                 return false;
         }
         return true;
