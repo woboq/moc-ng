@@ -122,7 +122,10 @@ void Generator::GetTypeInfo(clang::QualType Type)
     if (Type->isReferenceType() && Type.getNonReferenceType().isConstQualified())
         Type = Type.getNonReferenceType();
     Type.removeLocalConst();
-    std::string TypeString = Type.getAsString(PrintPolicy);
+
+    clang::PrintingPolicy Policy = PrintPolicy;
+    Policy.SuppressScope = true;
+    std::string TypeString = Type.getAsString(Policy);
 
     // Remove the spaces;
     int k = 0;
