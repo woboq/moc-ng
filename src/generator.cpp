@@ -447,7 +447,7 @@ void Generator::GenerateCode()
 
         for (const auto &Itrf : CDef->Interfaces) {
             OS << "    if (!qstrcmp(_clname, qobject_interface_iid< " << Itrf << " *>()))\n"
-                  "        return static_cast< " << Itrf << "  *>(const_cast<" <<  QualName << "*>(this));\n";
+                  "        return static_cast< " << Itrf << "  *>(this);\n";
         }
 
         if (BaseName.empty()) OS << "    return 0;\n}\n";
@@ -631,6 +631,7 @@ void Generator::GenerateMetaCall()
 
 void Generator::GenerateStaticMetaCall()
 {
+    llvm::StringRef ClassName = CDef->Record->getName();
     OS << "\nvoid " << QualName << "::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)\n{\n    ";
     bool NeedElse = false;
 
@@ -640,7 +641,7 @@ void Generator::GenerateStaticMetaCall()
 
         int CtorIndex = 0;
         ForEachMethod(CDef->Constructors, [&](const clang::CXXConstructorDecl *MD, int C) {
-            OS << "        case " << (CtorIndex++) << ": { QObject *_r = new " << QualName << "(";
+            OS << "        case " << (CtorIndex++) << ": { QObject *_r = new " << ClassName << "(";
 
             for (int j = 0 ; j < MD->getNumParams() - C; ++j) {
                 if (j) OS << ",";
@@ -662,7 +663,7 @@ void Generator::GenerateStaticMetaCall()
         NeedElse = true;
         OS << "if (_c == QMetaObject::InvokeMetaMethod) {\n"
 //            "        Q_ASSERT(staticMetaObject.cast(_o));\n"
-              "        " << QualName <<" *_t = static_cast<" << QualName << " *>(_o);\n"
+              "        " << ClassName <<" *_t = static_cast<" << ClassName << " *>(_o);\n"
               "        switch(_id) {\n" ;
         int MethodIndex = 0;
         auto GenM = [&](const clang::CXXMethodDecl *MD, int C) {
@@ -766,7 +767,7 @@ void Generator::GenerateStaticMetaCall()
             if (MD->isStatic() || !MD->getIdentifier())
                 continue;
             OS << "        {\n"
-                  "            typedef " << MD->getResultType().getAsString(PrintPolicy) << " (" << QualName << "::*_t)(";
+                  "            typedef " << MD->getResultType().getAsString(PrintPolicy) << " (" << ClassName << "::*_t)(";
             for (int j = 0 ; j < MD->getNumParams(); ++j) {
                 if (j) OS << ",";
                 OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy);
@@ -774,7 +775,7 @@ void Generator::GenerateStaticMetaCall()
             if (MD->isConst()) OS << ") const;\n";
             else OS << ");\n";
 
-            OS << "            if (*reinterpret_cast<_t *>(func) == static_cast<_t>(&"<< QualName <<"::"<< MD->getName() <<")) {\n"
+            OS << "            if (*reinterpret_cast<_t *>(func) == static_cast<_t>(&"<< ClassName <<"::"<< MD->getName() <<")) {\n"
                   "                *result = " << Idx << ";\n"
                   "            }\n"
                   "        }\n";
@@ -842,7 +843,7 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
     std::string This = "this";
     if (MD->isConst()) {
         OS << " const";
-        This = "const_cast< " + QualName + " *>(this)";
+        This = "const_cast< " + CDef->Record->getNameAsString()  + " *>(this)";
     }
     OS << "\n{\n";
     bool IsVoid = MD->getResultType()->isVoidType();
