@@ -235,7 +235,7 @@ struct MocNGASTConsumer : public MocASTConsumer {
 
 
         for (const ClassDef &Def : objects ) {
-          Generator G(&Def, Out, Ctx, &Moc.registered_meta_type);
+          Generator G(&Def, Out, Ctx, &Moc);
           if (llvm::StringRef(InFile).endswith("global/qnamespace.h"))
               G.IsQtNamespace = true;
           G.GenerateCode();

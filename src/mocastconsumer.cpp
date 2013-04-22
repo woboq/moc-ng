@@ -16,7 +16,7 @@
 
 void MocASTConsumer::Initialize(clang::ASTContext& Ctx) {
     ctx = &Ctx;
-    PPCallbacks = new MocPPCallbacks(ci.getPreprocessor());
+    PPCallbacks = new MocPPCallbacks(ci.getPreprocessor(), Moc.Tags);
     ci.getPreprocessor().addPPCallbacks(PPCallbacks);
 //   ci.getDiagnostics().setClient(new DiagnosticClient(), true);
 }

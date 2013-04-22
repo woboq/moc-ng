@@ -422,10 +422,26 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
         if (P.revision > 0)
             Def.RevisionPropertyCount++;
     }
-
-
-
-
-
     return Def;
 }
+
+std::string MocNg::GetTag(clang::SourceLocation DeclLoc, const clang::SourceManager &SM)
+{
+    clang::SourceLocation FileLoc = SM.getFileLoc(DeclLoc);
+    clang::FileID FID = SM.getFileID(FileLoc);
+    const llvm::MemoryBuffer *Buffer = SM.getBuffer(FID);
+    const char *B = Buffer->getBufferStart();
+    int Off = SM.getFileOffset(FileLoc);
+    int Orig = Off;
+    while (Off > 0 && B[Off] != ';' && B[Off]!=',' && B[Off] != '}' && B[Off] != ':' /*&& B[Off] != '\n'*/ ) {
+        Off--;
+    }
+
+    auto it_before = Tags.lower_bound(FileLoc.getLocWithOffset(Off - Orig));
+    auto it_after = Tags.upper_bound(FileLoc);
+    if (it_before != Tags.end() && it_before == (--it_after)) {
+        return it_before->second;
+    }
+    return {};
+}
+

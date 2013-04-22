@@ -16,6 +16,7 @@
 #include <clang/Basic/SourceLocation.h>
 #include "qbjs.h"
 
+class MocPPCallbacks;
 namespace clang {
 class CXXMethodDecl;
 class CXXRecordDecl;
@@ -121,4 +122,6 @@ public:
 
     bool HasPlugin = false;
 
+    std::map<clang::SourceLocation, std::string> Tags;
+    std::string GetTag(clang::SourceLocation DeclLoc, const clang::SourceManager& SM);
 };

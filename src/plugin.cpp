@@ -152,7 +152,7 @@ class MocPluginASTConsumer : public MocASTConsumer {
           if (Key && !Key->hasBody())
               continue;
 
-          Generator G(&Def, OS, *ctx, &Moc.registered_meta_type);
+          Generator G(&Def, OS, *ctx, &Moc);
           G.GenerateCode();
       }
       return Code;

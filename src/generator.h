@@ -94,10 +94,10 @@ class Generator {
     clang::ASTContext &Ctx;
     clang::PrintingPolicy PrintPolicy;
 
-    const MocNg::MetaTypeSet *MTS;
+    MocNg *Moc;
 
 public:
-    Generator(const ClassDef *CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, const MocNg::MetaTypeSet *MTS);
+    Generator(const ClassDef *CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, MocNg *Moc);
 
     bool IsQtNamespace = false;
 

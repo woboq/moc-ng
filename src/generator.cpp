@@ -98,7 +98,8 @@ void Generator::GenerateFunction(const T& V, const char* TypeName, MethodFlags T
         if (HasPrivateSignal(M))
             argc--;
 
-        OS << "    " << StrIdx(M->getNameAsString()) << ", " << argc << ", " << ParamIndex << ", " << StrIdx("") << ", 0x";
+        std::string tag = Moc->GetTag(M->getSourceRange().getBegin(), Ctx.getSourceManager());
+        OS << "    " << StrIdx(M->getNameAsString()) << ", " << argc << ", " << ParamIndex << ", " << StrIdx(tag) << ", 0x";
         OS.write_hex(Flags) << ",\n";
         ParamIndex += 1 + argc * 2;
     });
@@ -197,8 +198,8 @@ void Generator::GenerateFunctionParameters(const std::vector< T* >& V, const cha
 
 
 
-Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, const MocNg::MetaTypeSet *MTS) :
-    CDef(CDef), OS(OS), Ctx(Ctx), PrintPolicy(Ctx.getPrintingPolicy()), MTS(MTS)
+Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTContext& Ctx, MocNg* Moc) :
+    CDef(CDef), OS(OS), Ctx(Ctx), PrintPolicy(Ctx.getPrintingPolicy()), Moc(Moc)
 {
     PrintPolicy.SuppressTagKeyword = true;
     PrintPolicy.SuppressUnwrittenScope = true;
@@ -726,7 +727,7 @@ void Generator::GenerateStaticMetaCall()
                 || (RD && !RD->hasDefinition())) {
                 return;
             }
-            if (T->isPointerType() && MTS && !MTS->count(T->getCanonicalTypeUnqualified().getTypePtr())) {
+            if (T->isPointerType() && Moc && !Moc->registered_meta_type.count(T->getCanonicalTypeUnqualified().getTypePtr())) {
                 // registering pointer to forward declared type fails.
                 const clang::CXXRecordDecl* Pointee = T->getPointeeCXXRecordDecl();
                 if (Pointee && !Pointee->hasDefinition())
@@ -801,7 +802,8 @@ void Generator::GenerateStaticMetaCall()
         for (const PropertyDef &P: CDef->Properties) {
             int OldIdx = Idx++;
             if (P.PossiblyForwardDeclared) {
-                if (!std::any_of(MTS->begin(), MTS->end(), [&](const clang::Type*T){
+                const auto &MTS = Moc->registered_meta_type;
+                if (!std::any_of(MTS.begin(), MTS.end(), [&](const clang::Type*T){
                     return clang::QualType(T,0).getAsString(PrintPolicy) == P.type;
                 } ))
                     continue;
