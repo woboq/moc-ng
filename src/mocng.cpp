@@ -14,6 +14,7 @@
 
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/DeclTemplate.h>
+#include <clang/AST/ASTContext.h>
 #include <clang/AST/Type.h>
 #include <clang/Sema/Sema.h>
 #include <clang/Sema/Lookup.h>
@@ -443,5 +444,38 @@ std::string MocNg::GetTag(clang::SourceLocation DeclLoc, const clang::SourceMana
         return it_before->second;
     }
     return {};
+}
+
+bool MocNg::ShouldRegisterMetaType(clang::QualType T)
+{
+    if (T->isVoidType() || (T->isReferenceType() && !T.getNonReferenceType().isConstQualified()))
+        return false;
+
+    if (registered_meta_type.count(T->getCanonicalTypeUnqualified().getTypePtr()))
+        return true;
+
+    T = T.getNonReferenceType();
+
+    if (T->isPointerType()) {
+        // registering pointer to forward declared type fails.
+        const clang::CXXRecordDecl* Pointee = T->getPointeeCXXRecordDecl();
+        if (Pointee && !Pointee->hasDefinition())
+            return false;
+        return true;
+    }
+
+    const clang::ClassTemplateSpecializationDecl* TD = llvm::dyn_cast_or_null<clang::ClassTemplateSpecializationDecl>(T->getAsCXXRecordDecl());
+    if (TD) {
+        if (!TD->hasDefinition())
+            return false;
+        for (int I = 0; I < TD->getTemplateArgs().size(); ++I) {
+            const auto &Arg = TD->getTemplateArgs().get(I);
+            if (Arg.getKind() == clang::TemplateArgument::Type) {
+                if (!ShouldRegisterMetaType(Arg.getAsType()))
+                    return false;
+            }
+        }
+    }
+    return true;
 }
 

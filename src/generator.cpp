@@ -9,7 +9,6 @@
 #include "mocng.h"
 #include "qbjs.h"
 #include <string>
-#include <type_traits>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/ASTContext.h>
 #include <clang/Sema/Sema.h>
@@ -725,17 +724,8 @@ void Generator::GenerateStaticMetaCall()
 
 
         auto RegisterT = [&](const clang::QualType T, unsigned int Idx) {
-            const clang::CXXRecordDecl* RD = T->getPointeeCXXRecordDecl();
-            if (T->isVoidType() || (T->isReferenceType() && !T.getNonReferenceType().isConstQualified())
-                || (RD && !RD->hasDefinition())) {
+            if (!Moc->ShouldRegisterMetaType(T))
                 return;
-            }
-            if (T->isPointerType() && Moc && !Moc->registered_meta_type.count(T->getCanonicalTypeUnqualified().getTypePtr())) {
-                // registering pointer to forward declared type fails.
-                const clang::CXXRecordDecl* Pointee = T->getPointeeCXXRecordDecl();
-                if (Pointee && !Pointee->hasDefinition())
-                    return ;
-            }
             OS << "       case 0x";
             OS.write_hex(Idx);
             OS << ": *reinterpret_cast<int*>(_a[0]) = ";

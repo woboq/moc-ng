@@ -26,6 +26,7 @@ class Preprocessor;
 class Sema;
 class TypeDecl;
 class Type;
+class QualType;
 }
 
 struct NotifyDef {
@@ -124,4 +125,5 @@ public:
 
     std::map<clang::SourceLocation, std::string> Tags;
     std::string GetTag(clang::SourceLocation DeclLoc, const clang::SourceManager& SM);
+    bool ShouldRegisterMetaType(clang::QualType T);
 };
