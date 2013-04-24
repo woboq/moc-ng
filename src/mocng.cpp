@@ -30,7 +30,6 @@ static clang::SourceLocation GetFromLiteral(clang::Token Tok, clang::StringLiter
 }
 
 
-
 //FIXME.  make it less stupid
 static void parseInterfaces(ClassDef &Def, clang::Expr *Content, clang::Sema &Sema) {
     clang::Preprocessor &PP = Sema.getPreprocessor();
@@ -366,24 +365,19 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                 }
             }
         } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {
-       // int Clones = it->getNumParams() - it->getMinRequiredArguments();
             for (auto attr_it = M->specific_attr_begin<clang::AnnotateAttr>();
                 attr_it != M->specific_attr_end<clang::AnnotateAttr>();
                 ++attr_it) {
 
                 const clang::AnnotateAttr *A = *attr_it;
                 if (A->getAnnotation() == "qt_signal") {
-            //        for (int i = 0; i < Clones; ++i)
                         Def.Signals.push_back(M);
                 } else if (A->getAnnotation() == "qt_slot") {
-        //         for (int i = 0; i < Clones; ++i)
                         Def.Slots.push_back(M);
                 } else if (A->getAnnotation() == "qt_invokable" || A->getAnnotation() == "qt_scriptable" ) {
                     if (auto *C = llvm::dyn_cast<clang::CXXConstructorDecl>(M)) {
-            //            for (int i = 0; i < Clones; ++i)
                             Def.Constructors.push_back(C);
                     } else {
-            //            for (int i = 0; i < Clones; ++i)
                             Def.Methods.push_back(M);
                     }
                 } else if (A->getAnnotation().startswith("qt_revision:")) {
@@ -392,11 +386,6 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
             }
         }
     }
-/*
-    if (Def.HasQObject) {
-        std::cout << Def.Record->getQualifiedNameAsString() <<  " is " << Def.HasQObject << "a Q_OBJECT" << std::endl;
-    }*/
-
 
     //Check notify Signals
     for (PropertyDef &P: Def.Properties) {
