@@ -187,7 +187,11 @@ protected:
         //enable all the extension
         CI.getLangOpts().MicrosoftExt = true;
         CI.getLangOpts().DollarIdents = true;
+#if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
         CI.getLangOpts().CPlusPlus11 = true;
+#else
+        CI.getLangOpts().CPlusPlus0x = true;
+#endif
         CI.getLangOpts().CPlusPlus1y = true;
         CI.getLangOpts().GNUMode = true;
 
