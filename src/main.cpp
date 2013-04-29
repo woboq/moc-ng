@@ -6,6 +6,7 @@
 
 
 #include <clang/Frontend/FrontendAction.h>
+#include <clang/Frontend/FrontendActions.h>
 #include <clang/Tooling/Tooling.h>
 #include <clang/Driver/Driver.h>
 #include <clang/Driver/Compilation.h>
@@ -209,11 +210,11 @@ public:
 
 int main(int argc, const char **argv)
 {
+  bool PreprocessorOnly = false;
   std::vector<std::string> Argv;
   Argv.push_back(argv[0]);
   Argv.push_back("-x");  // Type need to go first
   Argv.push_back("c++");
-  Argv.push_back("-fsyntax-only");
   Argv.push_back("-fPIE");
 
   Options.Output = "-";
@@ -227,6 +228,8 @@ int main(int argc, const char **argv)
       } else if (argv[I][1] == 'i') {
         Options.NoInclude = true;
         continue;
+      } else if (argv[I][1] == 'E') {
+          PreprocessorOnly = true;
       }
     }
     Argv.push_back(argv[I]);
@@ -238,6 +241,16 @@ int main(int argc, const char **argv)
   Argv.push_back("-I/usr/lib/clang/3.2/include/");
 
   clang::FileManager FM({"."});
+
+  if (PreprocessorOnly) {
+      Argv.push_back("-P");
+      clang::tooling::ToolInvocation Inv(Argv, new clang::PrintPreprocessedAction, &FM);
+      return !Inv.run();
+  }
+
+
+  Argv.push_back("-fsyntax-only");
+
   clang::tooling::ToolInvocation Inv(Argv, new MocAction, &FM);
   return !Inv.run();
 }
