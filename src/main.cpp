@@ -248,6 +248,7 @@ int main(int argc, const char **argv)
   Argv.push_back("-x");  // Type need to go first
   Argv.push_back("c++");
   Argv.push_back("-fPIE");
+  Argv.push_back("-Wno-microsoft"); // get rid of a warning in qtextdocument.h
 
   Options.Output = "-";
   bool NextArgNotInput = false;
