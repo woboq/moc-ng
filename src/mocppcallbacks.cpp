@@ -32,7 +32,6 @@ void MocPPCallbacks::FileChanged(clang::SourceLocation Loc, clang::PPCallbacks::
 }
 
 bool MocPPCallbacks::FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl< char >& RecoveryPath) {
-    //std::cout << "FILE NOT FOUND " << std::string(FileName) << std::endl;
     if (FileName.endswith(".moc") || FileName.endswith("_moc.cpp") || FileName.startswith("moc_")) {
         if (!PP.GetSuppressIncludeNotFoundError()) {
             PP.SetSuppressIncludeNotFoundError(true);
@@ -42,7 +41,23 @@ bool MocPPCallbacks::FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImp
         if (IncludeNotFoundSupressed) {
             PP.SetSuppressIncludeNotFoundError(false);
             IncludeNotFoundSupressed = false;
+        } else {
+            ShouldWarnHeaderNotFound = true;
         }
     }
     return false;
+}
+
+void MocPPCallbacks::InclusionDirective(clang::SourceLocation HashLoc, const clang::Token& IncludeTok, llvm::StringRef FileName, bool IsAngled, clang::CharSourceRange FilenameRange, const clang::FileEntry* File, llvm::StringRef SearchPath, llvm::StringRef RelativePath, const clang::Module* Imported)
+{
+    if (!File && ShouldWarnHeaderNotFound) {
+        /* This happens when we are not running as a plugin
+         * We want to transform the "include not found" error in a warning.
+         */
+        PP.getDiagnostics().Report(FilenameRange.getBegin(),
+                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
+                                                        "'%0' file not found"))
+            << FileName << FilenameRange;
+    }
+    ShouldWarnHeaderNotFound = false;
 }

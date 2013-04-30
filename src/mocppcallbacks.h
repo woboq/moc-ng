@@ -11,6 +11,7 @@ class MocPPCallbacks : public clang::PPCallbacks {
     clang::Preprocessor &PP;
 
     bool IncludeNotFoundSupressed = false;
+    bool ShouldWarnHeaderNotFound = false;
     bool InQMOCRUN = false;
     std::set<std::string> PossibleTags;
     std::map<clang::SourceLocation, std::string> &Tags;
@@ -41,7 +42,10 @@ protected:
     void FileChanged(clang::SourceLocation Loc, FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType,
                              clang::FileID PrevFID) override;
     bool FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImpl< char >& RecoveryPath) override;
-
+    void InclusionDirective(clang::SourceLocation HashLoc, const clang::Token& IncludeTok,
+                            llvm::StringRef FileName, bool IsAngled, clang::CharSourceRange FilenameRange,
+                            const clang::FileEntry* File, llvm::StringRef SearchPath, llvm::StringRef RelativePath,
+                            const clang::Module* Imported) override;
 
     void Defined(const clang::Token& MacroNameTok
 #if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
