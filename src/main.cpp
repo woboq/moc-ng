@@ -206,7 +206,39 @@ public:
     virtual bool hasCodeCompletionSupport() const { return true; }
 };
 
+static void showVersion(bool /*Long*/) {
+    std::cerr << "moc-ng version " MOCNG_VERSION_STR " by Woboq [http://woboq.com]" << std::endl;
+}
 
+static void showHelp() {
+    std::cerr << "Usage moc: [options] <header-file>\n"
+              "  -o<file>           write output to file rather than stdout\n"
+              "  -I<dir>            add dir to the include path for header files\n"
+              "  -E                 preprocess only; do not generate meta object code\n"
+              "  -D<macro>[=<def>]  define macro, with optional definition\n"
+              "  -U<macro>          undefine macro\n"
+              "  -i                 do not generate an #include statement\n"
+//               "  -p<path>           path prefix for included file\n"
+//               "  -f[<file>]         force #include, optional file name\n"
+//               "  -nn                do not display notes\n"
+//               "  -nw                do not display warnings\n"
+//               "  @<file>            read additional options from file\n"
+              "  -v                 display version of moc-ng\n"
+
+/* undocumented options
+              "  -include <file>    Adds an implicit #include into the predefines buffer which is read before the source file is preprocessed\n"
+              "  -W<warnings>       Enable the specified warning\n"
+              "  -f<option>         clang option\n"
+              "  -X<ext> <arg>      extensions arguments\n"
+*/
+
+
+
+              << std::endl;
+
+
+    showVersion(false);
+}
 
 int main(int argc, const char **argv)
 {
@@ -218,19 +250,59 @@ int main(int argc, const char **argv)
   Argv.push_back("-fPIE");
 
   Options.Output = "-";
+  bool NextArgNotInput = false;
+  bool HasInput = false;
 
   for (int I = 1 ; I < argc; ++I) {
     if (argv[I][0] == '-') {
-      if (argv[I][1] == 'o') {
-        if (argv[I][2]) Options.Output = &argv[I][2];
-        else if ((++I) < argc) Options.Output = argv[I];
-        continue;
-      } else if (argv[I][1] == 'i') {
-        Options.NoInclude = true;
-        continue;
-      } else if (argv[I][1] == 'E') {
-          PreprocessorOnly = true;
-      }
+        NextArgNotInput = false;
+        switch (argv[I][1]) {
+            case 'h':
+            case '?':
+                showHelp();
+                return EXIT_SUCCESS;
+            case 'v':
+                showVersion(true);
+                return EXIT_SUCCESS;
+            case 'o':
+                if (argv[I][2]) Options.Output = &argv[I][2];
+                else if ((++I) < argc) Options.Output = argv[I];
+                continue;
+            case 'i':
+                if (argv[I] == llvm::StringRef("-i")) {
+                    Options.NoInclude = true;
+                    continue;
+                } else if (argv[I] == llvm::StringRef("-include")) {
+                    NextArgNotInput = true;
+                    break;
+                }
+                goto invalidArg;
+            case 'E':
+                PreprocessorOnly = true;
+                break;
+            case 'I':
+            case 'U':
+            case 'D':
+                NextArgNotInput = (argv[I][2] == '\0');
+                break;
+            case 'X':
+                NextArgNotInput = true;
+                break;
+            case 'f': //this is understood as compiler option rather than moc -f
+            case 'W': // same
+                break;
+            default:
+invalidArg:
+                std::cerr << "moc-ng: Invalid argument '" << argv[I] << "'" << std::endl;
+                showHelp();
+                return EXIT_FAILURE;
+        }
+    } else if (!NextArgNotInput) {
+        if (HasInput) {
+            std::cerr << "error: Too many input files specified" << std::endl;
+            return EXIT_FAILURE;
+        }
+        HasInput = true;
     }
     Argv.push_back(argv[I]);
   }
