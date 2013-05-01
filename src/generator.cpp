@@ -115,12 +115,39 @@ void Generator::GetTypeInfo(clang::QualType Type)
         OS << "QMetaType::Void";
         return;
     }
-    // TODO:  Find the QMetaType
 
     // remove const or const &
     if (Type->isReferenceType() && Type.getNonReferenceType().isConstQualified())
         Type = Type.getNonReferenceType();
     Type.removeLocalConst();
+
+    if (Type->isBuiltinType()) {
+        const clang::BuiltinType * BT = Type->getAs<clang::BuiltinType>();
+        switch(+BT->getKind()) {
+#define BUILTIN(Type) \
+            case clang::BuiltinType::Type: \
+                OS << "QMetaType::" #Type; \
+                return;
+            BUILTIN(Bool)
+            BUILTIN(Int)
+            BUILTIN(UInt)
+            BUILTIN(LongLong)
+            BUILTIN(ULongLong)
+            BUILTIN(Double)
+            BUILTIN(Long)
+            BUILTIN(Short)
+            // Char?
+            BUILTIN(ULong)
+            BUILTIN(UShort)
+            BUILTIN(UChar)
+            BUILTIN(Float)
+            BUILTIN(SChar)
+#undef BUILTIN
+        }
+
+    }
+    // TODO:  Find more QMetaType
+
 
     clang::PrintingPolicy Policy = PrintPolicy;
     Policy.SuppressScope = true;
