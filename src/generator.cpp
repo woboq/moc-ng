@@ -144,7 +144,6 @@ void Generator::GetTypeInfo(clang::QualType Type)
             BUILTIN(SChar)
 #undef BUILTIN
         }
-
     }
     // TODO:  Find more QMetaType
 

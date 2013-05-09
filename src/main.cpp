@@ -27,6 +27,7 @@
 #include "mocastconsumer.h"
 #include "generator.h"
 #include "mocppcallbacks.h"
+#include "embedded_includes.h"
 
 struct MocOptions {
   bool NoInclude = false;
@@ -240,6 +241,7 @@ static void showHelp() {
     showVersion(false);
 }
 
+
 int main(int argc, const char **argv)
 {
   bool PreprocessorOnly = false;
@@ -311,7 +313,7 @@ invalidArg:
   //FIXME
   Argv.push_back("-I/usr/include/qt5");
   Argv.push_back("-I/usr/include/qt5/QtCore");
-  Argv.push_back("-I/usr/lib/clang/3.2/include/");
+  Argv.push_back("-I/builtins");
 
   clang::FileManager FM({"."});
 
@@ -325,6 +327,13 @@ invalidArg:
   Argv.push_back("-fsyntax-only");
 
   clang::tooling::ToolInvocation Inv(Argv, new MocAction, &FM);
+
+  const EmbeddedFile *f = EmbeddedFiles;
+  while (f->filename) {
+      Inv.mapVirtualFile(f->filename, {f->content , f->size } );
+      f++;
+  }
+
   return !Inv.run();
 }
 
