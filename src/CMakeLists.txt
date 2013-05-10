@@ -1,3 +1,22 @@
+# /****************************************************************************
+#  *  Copyright (C) 2013 Woboq UG (haftungsbeschraenkt)
+#  *  Olivier Goffart <contact at woboq.com>
+#  *  http://woboq.com/
+#  *
+#  *  This program is free software: you can redistribute it and/or modify
+#  *  it under the terms of the GNU General Public License as published by
+#  *  the Free Software Foundation, either version 3 of the License, or
+#  *  (at your option) any later version.
+#  *
+#  *  This program is distributed in the hope that it will be useful,
+#  *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  *  GNU General Public License for more details.
+#  *
+#  *  You should have received a copy of the GNU General Public License
+#  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
+#  */
+
 cmake_minimum_required(VERSION 2.8)
 
 project(mocng_plugin CXX)
@@ -18,15 +37,11 @@ set_target_properties(mocng_plugin PROPERTIES
          LINK_FLAGS "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ExportedSymbolsList"
          SOVERSION 1.0)
 
-
-
 add_executable(moc  main.cpp mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp qbjs.cpp)
 target_link_libraries(moc   ${CLANG_LIBS} ${LLVM_LIBS_CORE} ${LLVM_LDFLAGS} )
 
-
-
 # install(TARGETS mocng_plugin LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
-
+# install(TARGETS moc LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
 
 ADD_DEFINITIONS("-std=c++11 -g -Wall -fno-rtti " )
 ADD_DEFINITIONS("-D__STDC_LIMIT_MACROS -D__STDC_CONSTANT_MACROS ")
