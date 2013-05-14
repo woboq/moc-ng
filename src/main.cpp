@@ -54,9 +54,11 @@ struct MocDiagConsumer : clang::DiagnosticConsumer {
 
     int HadRealError = 0;
 
+#if CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR < 2
     DiagnosticConsumer* clone(clang::DiagnosticsEngine& Diags) const override {
         return new MocDiagConsumer { Proxy->clone(Diags) };
     }
+#endif
     void BeginSourceFile(const clang::LangOptions& LangOpts, const clang::Preprocessor* PP = 0) override {
         Proxy->BeginSourceFile(LangOpts, PP);
     }

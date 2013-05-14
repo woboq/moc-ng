@@ -97,7 +97,11 @@ protected:
     }
 
 
-    void MacroExpands(const clang::Token& MacroNameTok, MacroParam, clang::SourceRange Range) override {
+    void MacroExpands(const clang::Token& MacroNameTok, MacroParam, clang::SourceRange Range
+#if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
+            , const clang::MacroArgs *
+#endif
+    ) override {
         if (InQMOCRUN) return;
         if (PossibleTags.count(MacroNameTok.getIdentifierInfo()->getName())) {
             clang::SourceLocation FileLoc = PP.getSourceManager().getFileLoc(MacroNameTok.getLocation());

@@ -56,8 +56,7 @@ endif()
 
 # Embed the clang header into the binary:
 exec_program(${LLVM_CONFIG_EXECUTABLE} ARGS --version      OUTPUT_VARIABLE LLVM_VERSION )
-function(read_embedded_include _filename_ )
-endfunction(read_embedded_include)
+string(REPLACE "svn" "" LLVM_VERSION "${LLVM_VERSION}")
 file(GLOB BUILTINS_HEADERS "${LLVM_BIN_DIR}/../lib/clang/${LLVM_VERSION}/include/*.h")
 foreach(BUILTIN_HEADER ${BUILTINS_HEADERS})
     file(READ ${BUILTIN_HEADER} BINARY_DATA HEX)
