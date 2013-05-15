@@ -27,6 +27,7 @@
 
 #include <iostream>
 
+// Returns true if the last argument of this mehod is a 'QPrivateSignal'
 static bool HasPrivateSignal(const clang::CXXMethodDecl *MD) {
     if (MD && MD->getNumParams()) {
         clang::CXXRecordDecl* RD = MD->getParamDecl(MD->getNumParams()-1)->getType()->getAsCXXRecordDecl();
@@ -35,7 +36,7 @@ static bool HasPrivateSignal(const clang::CXXMethodDecl *MD) {
     return false;
 }
 
-//  foreach method,  including  clones
+// Executes the 'Functor'  for each method,  including clones
 template<typename T, typename F>
 static void ForEachMethod(const std::vector<T> &V, F && Functor) {
     for(auto it : V) {
@@ -45,40 +46,37 @@ static void ForEachMethod(const std::vector<T> &V, F && Functor) {
     }
 }
 
-template<typename T> int CountMethod(const T& V) {
+// Count the number of method in the vector, including clones
+template<typename T>
+int CountMethod(const std::vector<T> &V) {
     int R  = 0;
     ForEachMethod(V, [&](const clang::CXXMethodDecl*, int) { R++; });
     return R;
 }
 
-template<typename T> int AggregatePerameterCount(const std::vector<T>& V) {
+// Count the total number of parametters in the vector
+template<typename T> int AggregateParameterCount(const std::vector<T>& V) {
     int R = 0;
-    ForEachMethod(V, [&](const clang::CXXMethodDecl *M, int C) {
-        R += M->getNumParams() - C;
+    ForEachMethod(V, [&](const clang::CXXMethodDecl *M, int Clone) {
+        R += M->getNumParams() - Clone;
         R += 1; // return value;
         if (HasPrivateSignal(M))
             R--;
     });
     return R;
 }
-/*
-template<typename F>
-int ForAll(const ClassDef *CDef, F && Functor , bool Constructors = false) {
-    int R = Functor(CDef->Signals) + Functor(CDef->Slots) + Functor(CDef->Methods);
-    if (Constructors)
-        R += Functor(CDef->Constructors);
-    return R;
-}*/
 
+// Generate the data in the data array for the function in the given vector.
+//  ParamIndex is a reference to the index in which to store the parametters.
 template <typename T>
-void Generator::GenerateFunction(const T& V, const char* TypeName, MethodFlags Type, int& ParamIndex)
+void Generator::GenerateFunctions(const std::vector<T> &V, const char* TypeName, MethodFlags Type, int& ParamIndex)
 {
     if (V.empty())
         return;
 
     OS << "\n // " << TypeName << ": name, argc, parameters, tag, flags\n";
 
-    ForEachMethod(V, [&](const clang::CXXMethodDecl *M, int C) {
+    ForEachMethod(V, [&](const clang::CXXMethodDecl *M, int Clone) {
         unsigned int Flags = Type;
         if (Type == MethodSignal)
             Flags |= AccessProtected;  // That's what moc beleive
@@ -89,7 +87,7 @@ void Generator::GenerateFunction(const T& V, const char* TypeName, MethodFlags T
         else if (M->getAccess() == clang::AS_protected)
             Flags |= AccessProtected;
 
-        if (C)
+        if (Clone)
             Flags |= MethodCloned;
 
         for (auto attr_it = M->specific_attr_begin<clang::AnnotateAttr>();
@@ -105,7 +103,7 @@ void Generator::GenerateFunction(const T& V, const char* TypeName, MethodFlags T
             }
         }
 
-        int argc =  M->getNumParams() - C;
+        int argc =  M->getNumParams() - Clone;
         if (HasPrivateSignal(M))
             argc--;
 
@@ -121,7 +119,8 @@ static bool IsIdentChar(char c) {
     return (c=='_' || c=='$' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z'));
 }
 
-void Generator::GetTypeInfo(clang::QualType Type)
+//Generate the type information for the argument
+void Generator::GenerateTypeInfo(clang::QualType Type)
 {
     if (Type->isVoidType()) {
         OS << "QMetaType::Void";
@@ -198,7 +197,7 @@ void Generator::GetTypeInfo(clang::QualType Type)
     OS << "0x80000000 | " << StrIdx(TypeString);
 }
 
-
+// Generate the data in the data array for the parametters of functions in the vector
 template <typename T>
 void Generator::GenerateFunctionParameters(const std::vector< T* >& V, const char* TypeName)
 {
@@ -207,8 +206,8 @@ void Generator::GenerateFunctionParameters(const std::vector< T* >& V, const cha
 
     OS << "\n // " << TypeName << ": parameters\n";
 
-    ForEachMethod(V, [&](const clang::CXXMethodDecl *M, int C) {
-        int argc =  M->getNumParams() - C;
+    ForEachMethod(V, [&](const clang::CXXMethodDecl *M, int Clone) {
+        int argc =  M->getNumParams() - Clone;
         if (HasPrivateSignal(M))
             argc--;
         OS << "    ";
@@ -216,11 +215,11 @@ void Generator::GenerateFunctionParameters(const std::vector< T* >& V, const cha
         if (std::is_same<T, clang::CXXConstructorDecl>::value)
             OS << "0x80000000 | " << StrIdx("");
         else
-            GetTypeInfo(M->getResultType());
+            GenerateTypeInfo(M->getResultType());
         OS <<  ",";
         for (int j = 0; j < argc; j++) {
             OS << " ";
-            GetTypeInfo(M->getParamDecl(j)->getOriginalType());
+            GenerateTypeInfo(M->getParamDecl(j)->getOriginalType());
             OS <<  ",";
         }
 
@@ -281,8 +280,8 @@ void Generator::GenerateCode()
         Index += MethodCount;
 
     int ParamsIndex = Index;
-    int TotalParameterCount = AggregatePerameterCount(CDef->Signals) + AggregatePerameterCount(CDef->Slots)
-                            + AggregatePerameterCount(CDef->Methods) + AggregatePerameterCount(CDef->Constructors);
+    int TotalParameterCount = AggregateParameterCount(CDef->Signals) + AggregateParameterCount(CDef->Slots)
+                            + AggregateParameterCount(CDef->Methods) + AggregateParameterCount(CDef->Constructors);
     for (const PrivateSlotDef &P : CDef->PrivateSlots)
         TotalParameterCount += 1 + P.Args.size() * (1 + P.NumDefault) - (P.NumDefault * (P.NumDefault + 1) / 2);
     Index += TotalParameterCount * 2 // type and parameter names
@@ -316,22 +315,22 @@ void Generator::GenerateCode()
     }
 
 
-    GenerateFunction(CDef->Signals, "signals", MethodSignal, ParamsIndex);
-    GenerateFunction(CDef->Slots, "slots", MethodSlot, ParamsIndex);
+    GenerateFunctions(CDef->Signals, "signals", MethodSignal, ParamsIndex);
+    GenerateFunctions(CDef->Slots, "slots", MethodSlot, ParamsIndex);
     for (const PrivateSlotDef &P : CDef->PrivateSlots) {
-        for (int C = 0; C <= P.NumDefault; ++C) {
-            int argc = (P.Args.size() - C);
+        for (int Clone = 0; Clone <= P.NumDefault; ++Clone) {
+            int argc = (P.Args.size() - Clone);
             OS << "    " << StrIdx(P.Name) << ", " << argc << ", " << ParamsIndex << ", 0, 0x";
             unsigned int Flag = AccessPrivate | MethodSlot;
-            if (C) Flag |= MethodCloned;
+            if (Clone) Flag |= MethodCloned;
             OS.write_hex(Flag) << ",\n";
             ParamsIndex += 1 + argc * 2;
         }
     }
-    GenerateFunction(CDef->Methods, "methods", MethodMethod, ParamsIndex);
+    GenerateFunctions(CDef->Methods, "methods", MethodMethod, ParamsIndex);
 
     if (CDef->RevisionMethodCount) {
-        auto GenerateRevision = [&](const clang::CXXMethodDecl *M, int C) {
+        auto GenerateRevision = [&](const clang::CXXMethodDecl *M, int Clone) {
             llvm::StringRef SubStr = "0";
             for (auto attr_it = M->specific_attr_begin<clang::AnnotateAttr>();
                     attr_it != M->specific_attr_end<clang::AnnotateAttr>();
@@ -349,7 +348,7 @@ void Generator::GenerateCode()
         ForEachMethod(CDef->Slots, GenerateRevision);
         //OS << "\n    ";
         for (const PrivateSlotDef &P : CDef->PrivateSlots) {
-            for (int C = 0; C <= P.NumDefault; ++C)
+            for (int Clone = 0; Clone <= P.NumDefault; ++Clone)
                 OS << " 0,    ";
         }
         OS << "\n    ";
@@ -362,8 +361,8 @@ void Generator::GenerateCode()
     GenerateFunctionParameters(CDef->Signals, "signals");
     GenerateFunctionParameters(CDef->Slots, "slots");
     for (const PrivateSlotDef &P : CDef->PrivateSlots) {
-        for (int C = 0; C <= P.NumDefault; ++C) {
-            int argc = (P.Args.size() - C);
+        for (int Clone = 0; Clone <= P.NumDefault; ++Clone) {
+            int argc = (P.Args.size() - Clone);
             OS << "    ";
             if (P.ReturnType == "void") OS << "QMetaType::Void";
             else OS << "0x80000000 | " << StrIdx(P.ReturnType);
@@ -385,7 +384,7 @@ void Generator::GenerateCode()
     GenerateProperties();
     GenerateEnums(EnumIndex);
 
-    GenerateFunction(CDef->Constructors, "constructors", MethodConstructor, ParamsIndex);
+    GenerateFunctions(CDef->Constructors, "constructors", MethodConstructor, ParamsIndex);
 
     OS << "\n    0    // eod\n};\n";
 
@@ -561,14 +560,17 @@ void Generator::GenerateMetaCall()
         if (MethodCount)
             OS << "else ";
 
-        auto HandleProperty = [&](bool Need, const char *Action, const std::function<void(const PropertyDef &)> &F) {
+        // Generate the code for QMetaObject::'Action'.  calls 'Functor' to generate the  code for
+        // each properties
+        auto HandlePropertyAction = [&](bool Need, const char *Action,
+                                        const std::function<void(const PropertyDef &)> &Functor) {
             OS << "if (_c == QMetaObject::" << Action << ") {\n";
             if (Need) {
                 OS << "        switch (_id) {\n";
                 int I = 0;
                 for (const PropertyDef &p : CDef->Properties) {
                     OS << "        case " << (I++) <<": ";
-                    F(p);
+                    Functor(p);
                     OS << "break;\n";
                 }
                 OS << "        }";
@@ -576,7 +578,7 @@ void Generator::GenerateMetaCall()
             OS << "        _id -= " << CDef->Properties.size() << ";\n    }";
         };
 
-        HandleProperty(needGet, "ReadProperty", [&](const PropertyDef &p) {
+        HandlePropertyAction(needGet, "ReadProperty", [&](const PropertyDef &p) {
             if (p.read.empty() && p.member.empty())
                 return;
 
@@ -597,7 +599,7 @@ void Generator::GenerateMetaCall()
             }
         });
         OS << " else ";
-        HandleProperty(needSet, "WriteProperty", [&](const PropertyDef &p) {
+        HandlePropertyAction(needSet, "WriteProperty", [&](const PropertyDef &p) {
             if (p.constant)
                 return;
             if (!p.write.empty()) {
@@ -624,7 +626,7 @@ void Generator::GenerateMetaCall()
             }
         });
         OS << " else ";
-        HandleProperty(needReset, "ResetProperty", [&](const PropertyDef &p) {
+        HandlePropertyAction(needReset, "ResetProperty", [&](const PropertyDef &p) {
             if (p.reset.empty() || p.reset[p.reset.size()-1] != ')')
                 return;
 
@@ -633,9 +635,11 @@ void Generator::GenerateMetaCall()
             OS << p.reset << "; ";
         });
 
+        // Helper for all the QMetaObject::QueryProperty*
         typedef std::string (PropertyDef::*Accessor);
-        auto HandleQueryProperty = [&](bool Need, const char *Action, Accessor A) {
-            HandleProperty(Need, Action, [&](const PropertyDef &p) {
+        auto HandleQueryPropertyAction = [&](bool Need, const char *Action, Accessor A) {
+            OS << " else ";
+            HandlePropertyAction(Need, Action, [&](const PropertyDef &p) {
                 const std::string &S = (p.*A);
                 if (S.empty() || S[S.size()-1] != ')')
                     return;
@@ -643,18 +647,12 @@ void Generator::GenerateMetaCall()
             });
         };
 
-        OS << " else ";
-        HandleQueryProperty(needDesignable, "QueryPropertyDesignable", &PropertyDef::designable);
-        OS << " else ";
-        HandleQueryProperty(needScriptable, "QueryPropertyScriptable", &PropertyDef::scriptable);
-        OS << " else ";
-        HandleQueryProperty(needScriptable, "QueryPropertyStored", &PropertyDef::stored);
-        OS << " else ";
-        HandleQueryProperty(needEditable, "QueryPropertyEditable", &PropertyDef::editable);
-        OS << " else ";
-        HandleQueryProperty(needUser, "QueryPropertyUser", &PropertyDef::user);
-        OS << " else ";
-        HandleQueryProperty(needUser, "QueryPropertyUser", &PropertyDef::user);
+        HandleQueryPropertyAction(needDesignable, "QueryPropertyDesignable", &PropertyDef::designable);
+        HandleQueryPropertyAction(needScriptable, "QueryPropertyScriptable", &PropertyDef::scriptable);
+        HandleQueryPropertyAction(needScriptable, "QueryPropertyStored", &PropertyDef::stored);
+        HandleQueryPropertyAction(needEditable, "QueryPropertyEditable", &PropertyDef::editable);
+        HandleQueryPropertyAction(needUser, "QueryPropertyUser", &PropertyDef::user);
+        HandleQueryPropertyAction(needUser, "QueryPropertyUser", &PropertyDef::user);
 
         OS << " else if (_c == QMetaObject::RegisterPropertyMetaType) {\n"
               "        if (_id < " << CDef->Properties.size() <<  ")\n"
@@ -704,7 +702,7 @@ void Generator::GenerateStaticMetaCall()
               "        " << ClassName <<" *_t = static_cast<" << ClassName << " *>(_o);\n"
               "        switch(_id) {\n" ;
         int MethodIndex = 0;
-        auto GenM = [&](const clang::CXXMethodDecl *MD, int C) {
+        auto GenerateInvokeMethod = [&](const clang::CXXMethodDecl *MD, int Clone) {
             if (!MD->getIdentifier())
                 return;
 
@@ -716,7 +714,7 @@ void Generator::GenerateStaticMetaCall()
 
             OS << "_t->" << MD->getName() << "(";
 
-            for (int j = 0 ; j < MD->getNumParams() - C; ++j) {
+            for (int j = 0 ; j < MD->getNumParams() - Clone; ++j) {
                 if (j) OS << ",";
                 if (j == MD->getNumParams() - 1 && HasPrivateSignal(MD))
                     OS << "QPrivateSignal()";
@@ -732,17 +730,17 @@ void Generator::GenerateStaticMetaCall()
             OS <<  " break;\n";
             MethodIndex++;
         };
-        ForEachMethod(CDef->Signals, GenM);
-        ForEachMethod(CDef->Slots, GenM);
+        ForEachMethod(CDef->Signals, GenerateInvokeMethod);
+        ForEachMethod(CDef->Slots, GenerateInvokeMethod);
         for (const PrivateSlotDef &P : CDef->PrivateSlots) {
-            for (int C = 0; C <= P.NumDefault; ++C) {
+            for (int Clone = 0; Clone <= P.NumDefault; ++Clone) {
                 OS << "        case " << MethodIndex << ": ";
                 // Original moc don't support reference as return type: see  Moc::parseFunction
                 bool IsVoid = P.ReturnType == "void" || P.ReturnType.empty() || P.ReturnType.back() == '&';
                 if (!IsVoid)
                     OS << "{ " << P.ReturnType << " _r =  ";
                 OS << "_t->" << P.InPrivateClass << "->" << P.Name << "(";
-                for (int j = 0 ; j < P.Args.size() - C; ++j) {
+                for (int j = 0 ; j < P.Args.size() - Clone; ++j) {
                     if (j) OS << ",";
                     OS << "*reinterpret_cast< " << P.Args[j] << " *>(_a[" << (j+1) << "])";
                 }
@@ -754,7 +752,7 @@ void Generator::GenerateStaticMetaCall()
                 MethodIndex++;
             }
         }
-        ForEachMethod(CDef->Methods, GenM);
+        ForEachMethod(CDef->Methods, GenerateInvokeMethod);
 
         OS << "        }\n"
               "    } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {\n"
@@ -762,32 +760,29 @@ void Generator::GenerateStaticMetaCall()
               "        default: *reinterpret_cast<int*>(_a[0]) = -1; break;\n";
 
 
-        auto RegisterT = [&](const clang::QualType T, unsigned int Idx) {
-            if (!Moc->ShouldRegisterMetaType(T))
-                return;
-            OS << "       case 0x";
-            OS.write_hex(Idx);
-            OS << ": *reinterpret_cast<int*>(_a[0]) = ";
-            OS <<  "QtPrivate::QMetaTypeIdHelper< " << T.getNonReferenceType().getUnqualifiedType().getAsString(PrintPolicy)
-                << " >::qt_metatype_id(); break;\n";
-        };
-
-
         MethodIndex = 0;
-        auto RegisterM = [&](const clang::CXXMethodDecl *MD, int C) {
+        auto GenerateRegisterMethodArguments = [&](const clang::CXXMethodDecl *MD, int Clone) {
             if (!MD->getIdentifier())
                 return;
           //  RegisterT(MD->getResultType(), (MethodIndex << 16));
-            int argc = MD->getNumParams() - C - (HasPrivateSignal(MD)?1:0);
-            for (int j = 0 ; j < argc ; ++j)
-                RegisterT(MD->getParamDecl(j)->getType(), (MethodIndex << 16) | j);
+            int argc = MD->getNumParams() - Clone - (HasPrivateSignal(MD)?1:0);
+            for (int j = 0 ; j < argc ; ++j) {
+                auto Type = MD->getParamDecl(j)->getType();
+                if (!Moc->ShouldRegisterMetaType(Type))
+                    return;
+                OS << "       case 0x";
+                OS.write_hex((MethodIndex << 16) | j);
+                OS << ": *reinterpret_cast<int*>(_a[0]) = ";
+                OS <<  "QtPrivate::QMetaTypeIdHelper< " << Type.getNonReferenceType().getUnqualifiedType().getAsString(PrintPolicy)
+                    << " >::qt_metatype_id(); break;\n";
+            }
             MethodIndex++;
         };
 
-        ForEachMethod(CDef->Signals, RegisterM);
-        ForEachMethod(CDef->Slots, RegisterM);
-        MethodIndex += CDef->PrivateSlotCount; //Or should we?
-        ForEachMethod(CDef->Methods, RegisterM);
+        ForEachMethod(CDef->Signals, GenerateRegisterMethodArguments);
+        ForEachMethod(CDef->Slots, GenerateRegisterMethodArguments);
+        MethodIndex += CDef->PrivateSlotCount; // TODO: we should also register these types.
+        ForEachMethod(CDef->Methods, GenerateRegisterMethodArguments);
 
         OS << "        }\n    }";
 
@@ -847,19 +842,7 @@ void Generator::GenerateStaticMetaCall()
         OS << "    }\n";
     }
 
-#if 0
-        if (methodList.empty()) {
-            fprintf(out, "    Q_UNUSED(_o);\n");
-            if (CDef->constructorList.empty() && automaticPropertyMetaTypes.empty() && methodsWithAutomaticTypesHelper(methodList).empty()) {
-                fprintf(out, "    Q_UNUSED(_id);\n");
-                fprintf(out, "    Q_UNUSED(_c);\n");
-            }
-        }
-        if (!isUsed_a)
-            fprintf(out, "    Q_UNUSED(_a);\n");
 
-        fprintf(out, "}\n\n");
-#endif
     OS << "\n    Q_UNUSED(_o); Q_UNUSED(_id); Q_UNUSED(_c); Q_UNUSED(_a);";
     OS << "\n}\n";
 }
@@ -917,6 +900,7 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
     OS <<"}\n";
 }
 
+// Generate the data in the data array for the properties
 void Generator::GenerateProperties()
 {
     if (CDef->Properties.empty())
@@ -986,10 +970,9 @@ void Generator::GenerateProperties()
              OS << "    " << P.revision << ",\n";
          }
      }
-
-
 }
 
+// Generate the data in the data array for the enum.
 void Generator::GenerateEnums(int EnumIndex)
 {
     if (CDef->Enums.empty())
@@ -1017,6 +1000,8 @@ void Generator::GenerateEnums(int EnumIndex)
     }
 }
 
+// Returns the index of a string in the string data.
+// Register the string if it is not yet registered.
 int Generator::StrIdx(llvm::StringRef Str)
 {
     std::string S = Str;
@@ -1044,4 +1029,3 @@ void Generator::GeneratePluginMetaData(bool Debug)
     JSON << Data;
     OS << "\n};\n";
 }
-

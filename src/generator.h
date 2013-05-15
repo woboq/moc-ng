@@ -118,7 +118,7 @@ private:
 
     int StrIdx(llvm::StringRef);
     template <typename T>
-    void GenerateFunction(const T &V, const char *TypeName, MethodFlags Type, int &ParamIndex);
+    void GenerateFunctions(const std::vector<T> &V, const char *TypeName, MethodFlags Type, int &ParamIndex);
     template <typename T>
     void GenerateFunctionParameters(const std::vector<T*> &V, const char *TypeName);
 
@@ -127,7 +127,7 @@ private:
     void GenerateStaticMetaCall();
     void GenerateSignal(const clang::CXXMethodDecl *MD, int Idx);
 
-    void GetTypeInfo(clang::QualType Type);
+    void GenerateTypeInfo(clang::QualType Type);
     void GenerateEnums(int EnumIndex);
     void GeneratePluginMetaData(bool Debug);
 };
