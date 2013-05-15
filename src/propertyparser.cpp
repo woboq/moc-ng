@@ -19,6 +19,7 @@
 
 #include "propertyparser.h"
 #include <clang/Sema/Lookup.h>
+#include <clang/Sema/SemaDiagnostic.h>
 #include <clang/AST/CanonicalType.h>
 #include <iostream>
 
@@ -444,10 +445,24 @@ PropertyDef PropertyParser::parseProperty(bool PrivateProperty) {
                 clang::LookupResult Found(Sema, PP.getIdentifierInfo(v), ParamLoc, clang::Sema::LookupMemberName);
                 Sema.LookupQualifiedName(Found, RD);
                 if (Found.empty()) {
-                    PP.getDiagnostics().Report(ParamLoc,
-                              PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
-                              "READ function %0 not found")) << Found.getLookupName();
+                    clang::DeclFilterCCC<clang::CXXMethodDecl> Validator;
+                    if (clang::TypoCorrection Corrected =
+                            Sema.CorrectTypo(Found.getLookupNameInfo(), clang::Sema::LookupMemberName, nullptr, nullptr,
+                                             Validator, RD)) {
+                        PP.getDiagnostics().Report(Found.getNameLoc(),
+                                                   PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
+                                                    "READ function %0 not found; did you mean %1"))
+                            << Found.getLookupName() << Corrected.getCorrection()
+                            << clang::FixItHint::CreateReplacement(Found.getNameLoc(),
+                                                                   Corrected.getAsString(PP.getLangOpts()));
+                        PP.getDiagnostics().Report(Corrected.getCorrectionDecl()->getLocation(), clang::diag::note_previous_decl)
+                            << Corrected.getCorrection();
 
+                    } else {
+                        PP.getDiagnostics().Report(ParamLoc,
+                                                   PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
+                                                   "READ function %0 not found")) << Found.getLookupName();
+                    }
                 } else if (!Found.isAmbiguous()) {
                     clang::CXXMethodDecl* M = Found.getAsSingle<clang::CXXMethodDecl>();
                     if (M) {
