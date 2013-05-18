@@ -48,6 +48,7 @@ struct MocOptions {
 } Options;
 
 
+/* Proxy that changes some errors into warnings  */
 struct MocDiagConsumer : clang::DiagnosticConsumer {
     llvm::OwningPtr<DiagnosticConsumer> Proxy;
     MocDiagConsumer(DiagnosticConsumer *Previous) : Proxy(Previous)  {}
@@ -73,12 +74,15 @@ struct MocDiagConsumer : clang::DiagnosticConsumer {
     }
     void HandleDiagnostic(clang::DiagnosticsEngine::Level DiagLevel, const clang::Diagnostic& Info) override {
 
+        /* Moc ignores most of the errors since it even can operate on non self-contained headers.
+         * So try to change errors into warning.
+         */
+
         auto DiagId = Info.getID();
         auto Cat = Info.getDiags()->getDiagnosticIDs()->getCategoryNumberForDiag(DiagId);
 
         bool ShouldReset = false;
 
-//        std::cerr << "Category : " << Cat << std::endl;
         if (DiagLevel >= clang::DiagnosticsEngine::Error ) {
             if (Cat == 2 || Cat == 4
                 || DiagId == clang::diag::err_param_redefinition
@@ -111,7 +115,9 @@ struct MocNGASTConsumer : public MocASTConsumer {
         MocASTConsumer::Initialize(Ctx);
 
         if (llvm::StringRef(InFile).endswith("global/qnamespace.h")) {
-            std::cerr << std::string(InFile) << std::endl;
+            // qnamsepace.h is a bit special because it contains all the Qt namespace enums
+            // but all the Q_ENUMS are within a Q_MOC_RUN scope, which also do all sort of things.
+
             clang::Preprocessor &PP = ci.getPreprocessor();
             clang::MacroInfo *MI = PP.AllocateMacroInfo({});
             MI->setIsBuiltinMacro();
@@ -126,6 +132,7 @@ struct MocNGASTConsumer : public MocASTConsumer {
     }
 
     void HandleTagDeclDefinition(clang::TagDecl* D) override {
+        // We only want to parse the Qt macro in classes that are in the main file.
         auto SL = D->getSourceRange().getBegin();
         SL = ci.getSourceManager().getExpansionLoc(SL);
         if (ci.getSourceManager().getFileID(SL) != ci.getSourceManager().getMainFileID())
