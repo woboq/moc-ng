@@ -132,7 +132,10 @@ void Generator::GenerateTypeInfo(clang::QualType Type)
         Type = Type.getNonReferenceType();
     Type.removeLocalConst();
 
-    if (Type->isBuiltinType()) {
+    const clang::TypedefType * TT = Type->getAs<clang::TypedefType>();
+    // Handle builtin types as QMetaType,  but ignores typedef their name is likely not registered
+    //  (FIXME:  all the registered typedef such as uint and qint64 should go there.
+    if (Type->isBuiltinType() && (!TT)) {
         const clang::BuiltinType * BT = Type->getAs<clang::BuiltinType>();
         switch(+BT->getKind()) {
 #define BUILTIN(Type) \
