@@ -9,3 +9,18 @@ This is really two project:
     but uses the clang libraries for the parsing step.
 
 
+
+COMPILE:
+
+You need llvm and clang (3.2 or 3.3).
+Then run cmake and make (adapt your paths)
+
+ cmake . -DCMAKE_CXX_COMPILER=/opt/llvm/bin/clang++  -DLLVM_CONFIG_EXECUTABLE=/opt/llvm/bin/llvm-config
+ make
+
+USE:
+
+ * As a binary:  replace the moc provided by Qt by the one which is in src/moc
+
+ * As a clang plugin: Tell your build system not to run moc, and add this to the CXXFLAGS
+    -Xclang -load  -Xclang /path/to/src/libmocng_plugin.so -Xclang -add-plugin -Xclang moc
