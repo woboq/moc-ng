@@ -8,7 +8,10 @@ This is really two project:
   * A replacement for moc that aim to be compatible with qt's moc,
     but uses the clang libraries for the parsing step.
 
+Read the blog post:  http://woboq.com/blog/moc-with-clang.html
 
+BROWSE SOURCE CODE ONLINE:
+http://code.woboq.org/mocng/src/
 
 COMPILE:
 
@@ -24,3 +27,9 @@ USE:
 
  * As a clang plugin: Tell your build system not to run moc, and add this to the CXXFLAGS
     -Xclang -load  -Xclang /path/to/src/libmocng_plugin.so -Xclang -add-plugin -Xclang moc
+
+PROBLEMS?
+
+Make sure that the Qt include paths (and other include paths) are correctly passed to moc via the -I option
+
+Report bugs on github: https://github.com/woboq/moc-ng/issues
