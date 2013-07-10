@@ -21,6 +21,7 @@
 #include "propertyparser.h"
 #include "qbjs.h"
 
+#include <clang/Basic/Version.h>
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Lex/LiteralSupport.h>
 #include <clang/Lex/LexDiagnostic.h>
@@ -152,7 +153,12 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
         else {
             llvm::StringRef Filename = Literal.GetString();
             const clang::DirectoryLookup *CurDir;
-            const clang::FileEntry *File = PP.LookupFile(Filename, false, nullptr, CurDir, nullptr, nullptr, nullptr);
+            const clang::FileEntry *File = PP.LookupFile(
+#if CLANG_VERSION_MAJOR!=3 || CLANG_VERSION_MINOR>3
+                Val->getLocStart(),
+#endif
+                Filename, false, nullptr, CurDir, nullptr, nullptr, nullptr);
+
             if (!File) {
                 PP.getDiagnostics().Report(GetFromLiteral(StrToks.front(), Val, PP), clang::diag::err_pp_file_not_found)
                     << Filename;
