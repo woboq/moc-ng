@@ -64,6 +64,9 @@ protected:
 #if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
             ,MacroParam = 0
 #endif
+#if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 3
+            , clang::SourceRange = {}
+#endif
     ) override {
         if (MacroNameTok.getIdentifierInfo()->getName() != "Q_MOC_RUN")
             return;
