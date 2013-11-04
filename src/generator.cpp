@@ -618,7 +618,7 @@ void Generator::GenerateMetaCall()
                     OS << "\n"
                           "            if (" << M << " != " << A << ") {\n"
                           "                " << M << " = " << A << ";\n"
-                          "                emit " << p.notify.Str << "(";
+                          "                Q_EMIT " << p.notify.Str << "(";
                     if (p.notify.MD->getMinRequiredArguments() > 0)
                         OS << M;
                     OS << ");\n"
