@@ -150,11 +150,11 @@ struct MocNGASTConsumer : public MocASTConsumer {
                                      ci.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
                                                                          "No relevant classes found. No output generated"));
           //actually still create an empty file like moc does.
-          ci.createOutputFile(Options.Output, false, true, "", "", false, true);
+          ci.createOutputFile(Options.Output, false, true, "", "", false, false);
           return;
         }
 
-        llvm::raw_ostream *OS = ci.createOutputFile(Options.Output, false, true, "", "", false, true);
+        llvm::raw_ostream *OS = ci.createOutputFile(Options.Output, false, true, "", "", false, false);
 
         if (!OS) return;
         llvm::raw_ostream &Out = *OS;
