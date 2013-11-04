@@ -113,6 +113,9 @@ public:
 
     bool IsQtNamespace = false;
 
+    // plugin metadata from -M command line argument  (to be put in the JSON)
+    std::vector<std::pair<llvm::StringRef, llvm::StringRef>> MetaData;
+
     void GenerateCode();
 private:
 

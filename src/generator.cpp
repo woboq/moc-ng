@@ -1024,6 +1024,12 @@ void Generator::GeneratePluginMetaData(bool Debug)
     Data.Props["version"] = double(QT_VERSION);
     Data.Props["MetaData"] = CDef->Plugin.MetaData;
     Data.Props["debug"] = Debug;
+    for (const auto &It : MetaData) {
+        QBJS::Value &Array = Data.Props[It.first];
+        if (Array.T == QBJS::Undefined)
+            Array.T = QBJS::Array;
+        Array.Elems.push_back(std::string(It.second));
+    }
     OS << "QT_PLUGIN_METADATA_SECTION\n"
           "static const unsigned char qt_pluginMetaData[] = {\n"
           "    'Q', 'T', 'M', 'E', 'T', 'A', 'D', 'A', 'T', 'A', ' ', ' ',\n"

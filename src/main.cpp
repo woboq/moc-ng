@@ -45,6 +45,7 @@ struct MocOptions {
   bool NoInclude = false;
   std::vector<std::string> Includes;
   std::string Output;
+  std::vector<std::pair<llvm::StringRef, llvm::StringRef>> MetaData;
 } Options;
 
 
@@ -187,6 +188,7 @@ struct MocNGASTConsumer : public MocASTConsumer {
 
         for (const ClassDef &Def : objects ) {
           Generator G(&Def, Out, Ctx, &Moc);
+          G.MetaData = Options.MetaData;
           if (llvm::StringRef(InFile).endswith("global/qnamespace.h"))
               G.IsQtNamespace = true;
           G.GenerateCode();
@@ -239,6 +241,7 @@ static void showHelp() {
               "  -E                 preprocess only; do not generate meta object code\n"
               "  -D<macro>[=<def>]  define macro, with optional definition\n"
               "  -U<macro>          undefine macro\n"
+              "  -M<key=valye>      add key/value pair to plugin meta data\n"
               "  -i                 do not generate an #include statement\n"
 //               "  -p<path>           path prefix for included file\n"
 //               "  -f[<file>]         force #include, optional file name\n"
@@ -301,6 +304,18 @@ int main(int argc, const char **argv)
                     break;
                 }
                 goto invalidArg;
+            case 'M': {
+                llvm::StringRef Arg;
+                if (argv[I][2]) Arg = &argv[I][2];
+                else if ((++I) < argc) Arg = argv[I];
+                size_t Eq = Arg.find('=');
+                if (Eq == llvm::StringRef::npos) {
+                    std::cerr << "moc-ng: missing key or value for option '-M'" << std::endl;
+                    return EXIT_FAILURE;
+                }
+                Options.MetaData.push_back({Arg.substr(0, Eq), Arg.substr(Eq+1)});
+                continue;
+            }
             case 'E':
                 PreprocessorOnly = true;
                 break;
@@ -315,6 +330,8 @@ int main(int argc, const char **argv)
             case 'f': //this is understood as compiler option rather than moc -f
             case 'W': // same
                 break;
+            case 'n': //not implemented, silently ignored
+                continue;
             default:
 invalidArg:
                 std::cerr << "moc-ng: Invalid argument '" << argv[I] << "'" << std::endl;
