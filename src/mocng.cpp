@@ -284,10 +284,11 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
 
 }
 
+template<int N>
 static std::pair<clang::StringLiteral*, clang::StringLiteral *> ExtractLiterals(clang::ParenExpr *PE,
                                                                                 const clang::Preprocessor &PP,
                                                                                 const char *Keyword,
-                                                                                const char *Error) {
+                                                                                const char (&Error)[N]) {
     clang::BinaryOperator* BO = llvm::dyn_cast<clang::BinaryOperator>(PE->getSubExpr());
     clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
     if (!BO) {

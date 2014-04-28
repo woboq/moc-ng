@@ -27,6 +27,12 @@
 
 #include <iostream>
 
+/* Wrapper for the change in the name in clang 3.5 */
+template <typename T> auto getResultType(T *decl) -> decltype(decl->getResultType())
+{ return decl->getResultType(); }
+template <typename T> auto getResultType(T *decl) -> decltype(decl->getReturnType())
+{ return decl->getReturnType(); }
+
 // Returns true if the last argument of this mehod is a 'QPrivateSignal'
 static bool HasPrivateSignal(const clang::CXXMethodDecl *MD) {
     if (MD && MD->getNumParams()) {
@@ -218,7 +224,7 @@ void Generator::GenerateFunctionParameters(const std::vector< T* >& V, const cha
         if (std::is_same<T, clang::CXXConstructorDecl>::value)
             OS << "0x80000000 | " << StrIdx("");
         else
-            GenerateTypeInfo(M->getResultType());
+            GenerateTypeInfo(getResultType(M));
         OS <<  ",";
         for (int j = 0; j < argc; j++) {
             OS << " ";
@@ -711,9 +717,9 @@ void Generator::GenerateStaticMetaCall()
 
             OS << "        case " << MethodIndex << ": ";
             // Original moc don't support reference as return type: see  Moc::parseFunction
-            bool IsVoid = MD->getResultType()->isVoidType() || MD->getResultType()->isReferenceType();
+            bool IsVoid = getResultType(MD)->isVoidType() || getResultType(MD)->isReferenceType();
             if (!IsVoid)
-                OS << "{ " << MD->getResultType().getUnqualifiedType().getAsString(PrintPolicy) << " _r =  ";
+                OS << "{ " << getResultType(MD).getUnqualifiedType().getAsString(PrintPolicy) << " _r =  ";
 
             OS << "_t->" << MD->getName() << "(";
 
@@ -727,7 +733,7 @@ void Generator::GenerateStaticMetaCall()
             OS << ");";
             if (!IsVoid) {
                 OS << "\n            if (_a[0]) *reinterpret_cast< "
-                   << Ctx.getPointerType(MD->getResultType().getNonReferenceType().getUnqualifiedType()).getAsString(PrintPolicy)
+                   << Ctx.getPointerType(getResultType(MD).getNonReferenceType().getUnqualifiedType()).getAsString(PrintPolicy)
                    << " >(_a[0]) = _r; }";
             }
             OS <<  " break;\n";
@@ -767,7 +773,7 @@ void Generator::GenerateStaticMetaCall()
         auto GenerateRegisterMethodArguments = [&](const clang::CXXMethodDecl *MD, int Clone) {
             if (!MD->getIdentifier())
                 return;
-          //  RegisterT(MD->getResultType(), (MethodIndex << 16));
+          //  RegisterT(getResultType(MD), (MethodIndex << 16));
             int argc = MD->getNumParams() - Clone - (HasPrivateSignal(MD)?1:0);
             for (int j = 0 ; j < argc ; ++j) {
                 auto Type = MD->getParamDecl(j)->getType();
@@ -803,7 +809,7 @@ void Generator::GenerateStaticMetaCall()
             if (MD->isStatic() || !MD->getIdentifier())
                 continue;
             OS << "        {\n"
-                  "            typedef " << MD->getResultType().getAsString(PrintPolicy) << " (" << ClassName << "::*_t)(";
+                  "            typedef " << getResultType(MD).getAsString(PrintPolicy) << " (" << ClassName << "::*_t)(";
             for (int j = 0 ; j < MD->getNumParams(); ++j) {
                 if (j) OS << ",";
                 OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy);
@@ -856,7 +862,7 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
         return;
 
     OS << "\n// SIGNAL " << Idx << "\n"
-       << MD->getResultType().getAsString(PrintPolicy) << " " << QualName << "::" << MD->getName() + "(";
+       << getResultType(MD).getAsString(PrintPolicy) << " " << QualName << "::" << MD->getName() + "(";
     for (int j = 0 ; j < MD->getNumParams(); ++j) {
         if (j) OS << ",";
         OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy);
@@ -870,15 +876,15 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
         This = "const_cast< " + CDef->Record->getNameAsString()  + " *>(this)";
     }
     OS << "\n{\n";
-    bool IsVoid = MD->getResultType()->isVoidType();
+    bool IsVoid = getResultType(MD)->isVoidType();
     unsigned int NumParam = MD->getNumParams();
     if (HasPrivateSignal(MD)) NumParam--;
     if (IsVoid && NumParam == 0) {
         OS << "    QMetaObject::activate(" << This << ", &staticMetaObject, " << Idx << ", 0);\n";
     } else {
-        std::string T = MD->getResultType().getNonReferenceType().getUnqualifiedType().getAsString(PrintPolicy);
-        if (MD->getResultType()->isPointerType()) {
-            OS << "    " << MD->getResultType().getAsString(PrintPolicy) << " _t0 = 0;\n";
+        std::string T = getResultType(MD).getNonReferenceType().getUnqualifiedType().getAsString(PrintPolicy);
+        if (getResultType(MD)->isPointerType()) {
+            OS << "    " << getResultType(MD).getAsString(PrintPolicy) << " _t0 = 0;\n";
         } else if (!IsVoid) {
             OS << "    " << T << " _t0 = " << T << "();\n";
         }

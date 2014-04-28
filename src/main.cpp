@@ -32,6 +32,7 @@
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/DeclCXX.h>
 #include <llvm/Support/Host.h>
+#include <llvm/ADT/OwningPtr.h>
 
 #include <vector>
 #include <iostream>

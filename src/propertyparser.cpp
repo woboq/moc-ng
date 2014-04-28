@@ -447,8 +447,12 @@ PropertyDef PropertyParser::parseProperty(bool PrivateProperty) {
                 if (Found.empty()) {
                     clang::DeclFilterCCC<clang::CXXMethodDecl> Validator;
                     if (clang::TypoCorrection Corrected =
-                            Sema.CorrectTypo(Found.getLookupNameInfo(), clang::Sema::LookupMemberName, nullptr, nullptr,
-                                             Validator, RD)) {
+                            Sema.CorrectTypo(Found.getLookupNameInfo(), clang::Sema::LookupMemberName,
+                                             nullptr, nullptr, Validator,
+#if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR >= 5
+                                             clang::Sema::CTK_ErrorRecovery,
+#endif
+                                             RD)) {
                         PP.getDiagnostics().Report(Found.getNameLoc(),
                                                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
                                                     "READ function %0 not found; did you mean %1"))
@@ -466,7 +470,11 @@ PropertyDef PropertyParser::parseProperty(bool PrivateProperty) {
                 } else if (!Found.isAmbiguous()) {
                     clang::CXXMethodDecl* M = Found.getAsSingle<clang::CXXMethodDecl>();
                     if (M) {
+#if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR >= 5
+                        clang::QualType T = M->getReturnType();
+#else
                         clang::QualType T = M->getResultType();
+#endif
                         if (T->isPointerType() && type.back() != '*') {
                           clang::PrintingPolicy PrPo(PP.getLangOpts());
                           PrPo.SuppressTagKeyword = true;
