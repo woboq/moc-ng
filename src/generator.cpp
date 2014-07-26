@@ -441,7 +441,7 @@ void Generator::GenerateCode()
           "#undef QT_MOC_LITERAL\n";
 
     if (!CDef->Extra.empty()) {
-        OS << "static const QMetaObject *qt_meta_extradata_" << QualifiedClassNameIdentifier << "[] = {\n" ;
+        OS << "static const QMetaObject * const qt_meta_extradata_" << QualifiedClassNameIdentifier << "[] = {\n" ;
         for (clang::CXXRecordDecl *E : CDef->Extra)
             //TODO: Check that extra is a QObject
             OS << "    &" << E->getQualifiedNameAsString() << "::staticMetaObject,\n";
