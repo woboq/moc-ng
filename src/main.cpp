@@ -172,7 +172,11 @@ struct MocNGASTConsumer : public MocASTConsumer {
           for (auto &s : Options.Includes) {
             Out << s << "\n";
           }
-          if (llvm::StringRef(InFile).endswith(".h"))
+
+          auto spos = InFile.rfind('/');
+          auto ppos = InFile.rfind('.');
+          // If it finished by .h, or if there is no dot after a slash,  we should include the source file
+          if (ppos == std::string::npos || (spos != std::string::npos && spos > ppos) || llvm::StringRef(InFile).endswith(".h"))
             Out << "#include \"" << InFile << "\"\n";
           if (Moc.HasPlugin)
             Out << "#include <QtCore/qplugin.h>\n";
