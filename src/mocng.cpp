@@ -371,6 +371,8 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                     parseEnums(Def, true, PE->getSubExpr(), Sema);
                 } else if (key == "qt_qobject") {
                     Def.HasQObject = true;
+                } else if (key == "qt_fake") {
+                    Def.HasQGadget = false;
                 } else if (key == "qt_qgadget") {
                     Def.HasQGadget = true;
                 } else if (key == "qt_classinfo") {
