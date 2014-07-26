@@ -771,14 +771,16 @@ void Generator::GenerateStaticMetaCall()
 
         MethodIndex = 0;
         auto GenerateRegisterMethodArguments = [&](const clang::CXXMethodDecl *MD, int Clone) {
-            if (!MD->getIdentifier())
+            if (!MD->getIdentifier()) {
+                MethodIndex++;
                 return;
+            }
           //  RegisterT(getResultType(MD), (MethodIndex << 16));
             int argc = MD->getNumParams() - Clone - (HasPrivateSignal(MD)?1:0);
             for (int j = 0 ; j < argc ; ++j) {
                 auto Type = MD->getParamDecl(j)->getType();
                 if (!Moc->ShouldRegisterMetaType(Type))
-                    return;
+                    break;
                 OS << "       case 0x";
                 OS.write_hex((MethodIndex << 16) | j);
                 OS << ": *reinterpret_cast<int*>(_a[0]) = ";
