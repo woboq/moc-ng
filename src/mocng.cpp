@@ -328,7 +328,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                         PropertyParser Parser(Val->getString(),
     //                                          Val->getStrTokenLoc(0),
                                             Val->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
-                                            Sema, Def.Record, &registered_meta_type);
+                                            Sema, Def.Record);
                         Def.Properties.push_back(Parser.parseProperty());
                         Def.addExtra(Parser.Extra);
                     } else {

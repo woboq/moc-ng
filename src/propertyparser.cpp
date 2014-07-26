@@ -302,8 +302,19 @@ std::string PropertyParser::parseType(bool SupressDiagnostics) {
 
                 /*if (!R)
                     IsEnum = false;*/
-                if (R && MTS && MTS->count(R->getTypeForDecl()->getCanonicalTypeUnqualified().getTypePtr()))
-                    Extra = nullptr;
+
+                if(Extra) {
+                    bool isQObjectOrQGadget = false;
+                    for (auto it = Extra->decls_begin(); it != Extra->decls_end(); ++it) {
+                        auto ND = llvm::dyn_cast<clang::NamedDecl>(*it);
+                        if (ND && ND->getIdentifier() && ND->getName() == "staticMetaObject") {
+                            isQObjectOrQGadget = true;
+                            break;
+                        }
+                    }
+                    if (!isQObjectOrQGadget)
+                        Extra = nullptr;
+                }
 
                 if (!R) {
                     clang::CXXRecordDecl* D = Found.getAsSingle<clang::CXXRecordDecl>();

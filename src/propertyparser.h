@@ -41,8 +41,6 @@ class PropertyParser {
 
     clang::CXXRecordDecl *RD;
 
-    const MocNg::MetaTypeSet *MTS = nullptr;
-
     bool IsEnum = false;
     bool IsPossiblyForwardDeclared = false;
 
@@ -51,13 +49,13 @@ public:
     clang::CXXRecordDecl *Extra = nullptr;
 
     PropertyParser(llvm::StringRef Text, clang::SourceLocation Loc, clang::Sema &Sema,
-                   clang::CXXRecordDecl *RD, const MocNg::MetaTypeSet *MTS = nullptr) :
+                   clang::CXXRecordDecl *RD) :
         Sema(Sema), PP(Sema.getPreprocessor()),
         Buf(llvm::MemoryBuffer::getMemBufferCopy(Text/*, "Q_PROPERTY"*/)),
 //        Lexer(PP.getSourceManager().getSpellingLoc(Loc), PP.getLangOpts(), Text.begin(), Text.begin(), Text.end()),
         Lexer(CreateFileIDForMemBuffer(PP, Buf, Loc),
               Buf, PP.getSourceManager(), PP.getLangOpts()),
-        BaseLoc(Loc), RD(RD), MTS(MTS)
+        BaseLoc(Loc), RD(RD)
     {  }
 
 private:
