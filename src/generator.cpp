@@ -84,9 +84,7 @@ void Generator::GenerateFunctions(const std::vector<T> &V, const char* TypeName,
 
     ForEachMethod(V, [&](const clang::CXXMethodDecl *M, int Clone) {
         unsigned int Flags = Type;
-        if (Type == MethodSignal)
-            Flags |= AccessProtected;  // That's what moc beleive
-        else if (M->getAccess() == clang::AS_private)
+        if (M->getAccess() == clang::AS_private)
             Flags |= AccessPrivate;
         else if (M->getAccess() == clang::AS_public)
             Flags |= AccessPublic;
