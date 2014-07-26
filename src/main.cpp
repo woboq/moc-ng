@@ -352,9 +352,13 @@ invalidArg:
   //FIXME
   Argv.push_back("-I/usr/include/qt5");
   Argv.push_back("-I/usr/include/qt5/QtCore");
+  Argv.push_back("-I/usr/include/qt");
+  Argv.push_back("-I/usr/include/qt/QtCore");
+
   Argv.push_back("-I/builtins");
 
   clang::FileManager FM({"."});
+  FM.Retain();
 
   if (PreprocessorOnly) {
       Argv.push_back("-P");

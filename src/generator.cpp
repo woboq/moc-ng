@@ -485,7 +485,7 @@ void Generator::GenerateCode()
             for (auto BaseIt = CDef->Record->bases_begin()+1; BaseIt != CDef->Record->bases_end(); ++BaseIt) {
                 if (BaseIt->getAccessSpecifier() == clang::AS_private)
                     continue;
-                llvm::StringRef B = BaseIt->getType().getAsString(PrintPolicy);
+                auto B = BaseIt->getType().getAsString(PrintPolicy);
                 OS << "    if (!qstrcmp(_clname, \"" << B << "\"))\n"
                       "        return static_cast< " << B << "*>(this);\n";
             }

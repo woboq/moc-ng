@@ -18,7 +18,7 @@
  */
 
 
-const char Injected[] = R"-(
+static const char Injected[] = R"-(
 #if defined(Q_MOC_OUTPUT_REVISION) || defined(Q_MOC_RUN)
 
 #define QT_ANNOTATE_CLASS(type, anotation) \
