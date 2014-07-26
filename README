@@ -33,3 +33,39 @@ PROBLEMS?
 Make sure that the Qt include paths (and other include paths) are correctly passed to moc via the -I option
 
 Report bugs on github: https://github.com/woboq/moc-ng/issues
+
+TESTS:
+
+Replace the moc binary in the builddir (qtbase/bin/moc)  and run the tests.
+
+Known issue:
+ * FAIL!  : tst_QObject::normalize() 'object.connect(&object, SIGNAL(unsignedlongintSignal(unsigned long int)), SLOT(unsignedlongintSlot(unsigned long int)))' returned FALSE. ()
+   Because unsigned long int don't have the right metatype according to Qt. And clang looses the "int" in "long int"
+
+ * tst_qmetaobjectbuilder
+   reimplements its own metaobject but still is Q_OBJECT_CHECK which we use to detect it is a QObject
+
+(if moc is in the paths:)
+
+ * FAIL!  : tst_Moc::warnings
+   FAIL!  : tst_Moc::warnOnExtraSignalSlotQualifiaction
+   FAIL!  : tst_Moc::warnOnMultipleInheritance
+   FAIL!  : tst_Moc::forgottenQInterface
+   FAIL!  : tst_Moc::defineMacroViaCmdline
+   FAIL!  : tst_Moc::warnOnPropertyWithoutREAD
+   FAIL!  : tst_Moc::warnOnVirtualSignal
+   FAIL!  : tst_Moc::notifyError
+
+   The wording of the warnings is not the same with moc ng  (it is better)
+
+ * FAIL!  : tst_Moc::ignoreOptionClashes
+   Small difference in the handling of the options
+
+ * FAIL!  : tst_Moc::frameworkSearchPath
+   Not implemented
+
+ * FAIL!  : tst_Moc::templateGtGt()
+   the header don't include QObject
+
+ * FAIL!  : tst_Moc::unterminatedFunctionMacro()
+   moc -E  to preprocess nehave differently
