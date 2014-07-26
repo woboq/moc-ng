@@ -56,7 +56,7 @@ static void parseInterfaces(ClassDef &Def, clang::Expr *Content, clang::Sema &Se
     }
 
     llvm::MemoryBuffer* Buf = llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_INTERFACES");
-    clang::Lexer Lex(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Content->getExprLoc()),
+    clang::Lexer Lex(CreateFileIDForMemBuffer(PP, Buf, Content->getExprLoc()),
                      Buf, PP.getSourceManager(), PP.getLangOpts());
 
     clang::Token Tok;
@@ -119,7 +119,7 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
     }
 
     llvm::MemoryBuffer* Buf = llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_PLUGIN_METADATA");
-    clang::Lexer Lex(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Content->getExprLoc()),
+    clang::Lexer Lex(CreateFileIDForMemBuffer(PP, Buf, Content->getExprLoc()),
                      Buf, PP.getSourceManager(), PP.getLangOpts());
 
     clang::Token Tok;
@@ -144,7 +144,11 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
             StrToks.push_back(Tok);
             Lex.LexFromRawLexer(Tok);
         } while (Tok.is(clang::tok::string_literal));
+#if CLANG_VERSION_MAJOR!=3 || CLANG_VERSION_MINOR>4
+        clang::StringLiteralParser Literal(StrToks, PP);
+#else
         clang::StringLiteralParser Literal(&StrToks[0], StrToks.size(), PP);
+#endif
         if (Literal.hadError)
             return;
 
@@ -200,7 +204,7 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
     }
 
     llvm::MemoryBuffer* Buf = llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_ENUMS");
-    clang::Lexer Lex(PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Content->getExprLoc()),
+    clang::Lexer Lex(CreateFileIDForMemBuffer(PP, Buf, Content->getExprLoc()),
                      Buf, PP.getSourceManager(), PP.getLangOpts());
 
     clang::CXXScopeSpec SS;
@@ -487,4 +491,3 @@ bool MocNg::ShouldRegisterMetaType(clang::QualType T)
     }
     return true;
 }
-

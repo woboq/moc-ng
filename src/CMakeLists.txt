@@ -28,7 +28,7 @@ link_directories( ${LLVM_LIB_DIR} )
 Find_Package(Clang REQUIRED)
 include_directories(${CLANG_INCLUDE_DIRS})
 
-add_library(mocng_plugin SHARED plugin.cpp mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp qbjs.cpp)
+add_library(mocng_plugin SHARED plugin.cpp mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp qbjs.cpp clangversionabstraction.cpp)
 
 target_link_libraries(mocng_plugin  ${CLANG_LIBS} ${LLVM_LIBS_CORE} )
 
@@ -37,7 +37,7 @@ set_target_properties(mocng_plugin PROPERTIES
          LINK_FLAGS "-Wl,--version-script=${CMAKE_CURRENT_SOURCE_DIR}/ExportedSymbolsList"
          SOVERSION 1.0)
 
-add_executable(moc  main.cpp mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp qbjs.cpp)
+add_executable(moc  main.cpp mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp qbjs.cpp clangversionabstraction.cpp)
 target_link_libraries(moc   ${CLANG_LIBS} ${LLVM_LIBS_CORE} ${LLVM_LDFLAGS} )
 
 # install(TARGETS mocng_plugin LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})

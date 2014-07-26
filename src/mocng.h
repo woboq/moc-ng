@@ -27,6 +27,7 @@
 #include <unordered_map>
 #include <clang/Basic/SourceLocation.h>
 #include "qbjs.h"
+#include "clangversionabstraction.h"
 
 class MocPPCallbacks;
 namespace clang {

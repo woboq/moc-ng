@@ -102,7 +102,7 @@ class MocPluginASTConsumer : public MocASTConsumer {
           objects.clear();
           auto Buf = llvm::MemoryBuffer::getMemBufferCopy( code, "qt_moc");
           clang::SourceLocation Loc = PP.getSourceManager().getFileLoc(D.getSingleDecl()->getLocEnd());
-          PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Loc), nullptr, Loc);
+          PP.EnterSourceFile(CreateFileIDForMemBuffer(PP, Buf, Loc), nullptr, Loc);
         } else {
           ci.getPreprocessor().enableIncrementalProcessing(false);
           PP.Backtrack();
@@ -126,7 +126,7 @@ class MocPluginASTConsumer : public MocASTConsumer {
           auto RD = Def.Record;
 
           // find a key function: first non inline virtual method
-#if  CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
+#if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
           const clang::CXXMethodDecl *Key = ctx->getCurrentKeyFunction(RD);
 #else
           const clang::CXXMethodDecl *Key = ctx->getKeyFunction(RD);

@@ -18,12 +18,13 @@
  */
 
 #include "mocppcallbacks.h"
+#include "clangversionabstraction.h"
 
 void MocPPCallbacks::InjectQObjectDefs(clang::SourceLocation Loc) {
     #include "qobjectdefs-injected.h"
     auto Buf = llvm::MemoryBuffer::getMemBuffer(Injected, "qobjectdefs-injected.moc");
     Loc = PP.getSourceManager().getFileLoc(Loc);
-    PP.EnterSourceFile( PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Loc), nullptr, Loc);
+    PP.EnterSourceFile( CreateFileIDForMemBuffer(PP, Buf, Loc), nullptr, Loc);
 }
 
 void MocPPCallbacks::FileChanged(clang::SourceLocation Loc, clang::PPCallbacks::FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType, clang::FileID PrevFID) {
