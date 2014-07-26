@@ -412,8 +412,8 @@ void Generator::GenerateCode()
           "};\n"
           "#define QT_MOC_LITERAL(idx, ofs, len) \\\n"
           "    Q_STATIC_BYTE_ARRAY_DATA_HEADER_INITIALIZER_WITH_OFFSET(len, \\\n"
-          "    offsetof(qt_meta_stringdata_"<<  QualifiedClassNameIdentifier << "_t, stringdata) + ofs \\\n"
-          "        - idx * sizeof(QByteArrayData) \\\n"
+          "    qptrdiff(offsetof(qt_meta_stringdata_"<<  QualifiedClassNameIdentifier << "_t, stringdata) + ofs \\\n"
+          "        - idx * sizeof(QByteArrayData)) \\\n"
           "    )\n"
           "static const qt_meta_stringdata_"<<  QualifiedClassNameIdentifier << "_t qt_meta_stringdata_"<<  QualifiedClassNameIdentifier << " = {\n"
           "    {\n";
