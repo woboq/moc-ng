@@ -455,7 +455,7 @@ std::string MocNg::GetTag(clang::SourceLocation DeclLoc, const clang::SourceMana
 
     auto it_before = Tags.lower_bound(FileLoc.getLocWithOffset(Off - Orig));
     auto it_after = Tags.upper_bound(FileLoc);
-    if (it_before != Tags.end() && it_before == (--it_after)) {
+    if (it_before != Tags.end() && it_after != Tags.begin() && it_before == (--it_after)) {
         return it_before->second;
     }
     return {};
