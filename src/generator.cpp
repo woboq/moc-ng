@@ -582,6 +582,7 @@ void Generator::GenerateMetaCall()
                     Functor(p);
                     OS << "break;\n";
                 }
+                OS << "        default: break;\n";
                 OS << "        }";
             }
             OS << "        _id -= " << CDef->Properties.size() << ";\n    }";
@@ -697,7 +698,8 @@ void Generator::GenerateStaticMetaCall()
             }
             OS << ");\n            if (_a[0]) *reinterpret_cast<QObject**>(_a[0]) = _r; } break;\n";
         });
-        OS << "        }\n"
+        OS << "        default: break;\n"
+              "        }\n"
               "    }";
 
         NeedElse = true;
@@ -762,8 +764,8 @@ void Generator::GenerateStaticMetaCall()
             }
         }
         ForEachMethod(CDef->Methods, GenerateInvokeMethod);
-
-        OS << "        }\n"
+        OS << "        default: break;\n"
+              "        }\n"
               "    } else if (_c == QMetaObject::RegisterMethodArgumentMetaType) {\n"
               "        switch ((_id << 16) | *reinterpret_cast<int*>(_a[1])) {\n"
               "        default: *reinterpret_cast<int*>(_a[0]) = -1; break;\n";
