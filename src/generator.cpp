@@ -429,10 +429,38 @@ void Generator::GenerateCode()
         if (Col && Col + S.size() >= 72) {
             OS << "\"\n    \"";
             Col = 0;
-        } else if (S.size() && S[0] >= '0' && S[0] <= '9') {
+        } else if (S.size() && ((S[0] >= '0' && S[0] <= '9') || S[0] == '?')) {
             OS << "\"\"";
+            Col += 2;
         }
-        OS.write_escaped(S) << "\\0";
+
+        // Can't use write_escaped because of the trigraph
+        for (unsigned i = 0, e = S.size(); i != e; ++i) {
+            unsigned char c = S[i];
+            switch (c) {
+            case '\\': OS << '\\' << '\\'; break;
+            case '\t': OS << '\\' << 't'; break;
+            case '\n': OS << '\\' << 'n'; break;
+            case '"': OS << '\\' << '"'; break;
+            case '?':
+                if (i != 0 && S[i-1] == '?') {
+                    OS << '\\';
+                    Col++;
+                }
+                OS << '?';
+                break;
+            default:
+                if (std::isprint(c)) {
+                    OS << c;
+                    break;
+                }
+                // Use 3 character octal sequence
+                OS << '\\' << char('0' + ((c >> 6) & 7)) << char('0' + ((c >> 3) & 7)) << char('0' + ((c >> 0) & 7));
+                Col += 3;
+            }
+        }
+
+        OS << "\\0";
         Col += 2 + S.size();
     }
     OS << "\"\n};\n"
