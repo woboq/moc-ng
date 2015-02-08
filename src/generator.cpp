@@ -331,10 +331,15 @@ void Generator::GenerateCode()
     int ConstructorCount = CountMethod(CDef->Constructors);
     OS << "    " << ConstructorCount << ", " << I(ConstructorCount * 5) << ", // constructors \n";
 
-    OS << "    " << 0 << ", // flags \n";
+    int flags = 0;
+    if (CDef->HasQGadget) {
+        // Ideally, all the classes could have that flag. But this broke classes generated
+        // by qdbusxml2cpp which generate code that require that we call qt_metacall for properties
+        flags |= PropertyAccessInStaticMetaCall;
+    }
+    OS << "    " << flags << ", // flags \n";
 
     OS << "    " << CountMethod(CDef->Signals) << ", // signalCount \n";
-
 
     if (CDef->ClassInfo.size()) {
         OS << "\n  // classinfo: key, value\n";
@@ -511,7 +516,8 @@ void Generator::GenerateCode()
     OS << ", qt_meta_stringdata_"<< QualifiedClassNameIdentifier <<".data,\n"
           "      qt_meta_data_" << QualifiedClassNameIdentifier << ", ";
 
-    if (CDef->HasQObject) OS << "qt_static_metacall, ";
+    bool HasStaticMetaCall = CDef->HasQObject || !CDef->Methods.empty() || !CDef->Properties.empty();
+    if (HasStaticMetaCall) OS << "qt_static_metacall, ";
     else OS << "0, ";
 
     if (!CDef->Extra.empty()) OS << "qt_meta_extradata_" << QualifiedClassNameIdentifier << ", ";
@@ -555,6 +561,8 @@ void Generator::GenerateCode()
             GenerateSignal(MD, SigIdx);
             SigIdx += 1 + MD->getNumParams() - MD->getMinRequiredArguments();
         }
+    } else if (HasStaticMetaCall) {
+        GenerateStaticMetaCall();
     }
 
     if (!CDef->Plugin.IID.empty()) {
@@ -587,23 +595,12 @@ void Generator::GenerateMetaCall()
     }
 
     if (CDef->Properties.size()) {
-        bool needGet = false;
-        //bool needTempVarForGet = false;
-        bool needSet = false;
-        bool needReset = false;
         bool needDesignable = false;
         bool needScriptable = false;
         bool needStored = false;
         bool needEditable = false;
         bool needUser = false;
         for (const PropertyDef &p : CDef->Properties) {
-            needGet |= !p.read.empty() || !p.member.empty();
-            /*if (!p.read.empty())
-                needTempVarForGet |= (p.gspec != PropertyDef::PointerSpec
-                && p.gspec != PropertyDef::ReferenceSpec);*/
-            needSet |= !p.write.empty() || (!p.member.empty() && !p.constant);
-            needReset |= !p.reset.empty();
-
             auto IsFunction = [](const std::string &S) { return S.size() && S[S.size()-1] == ')'; };
             needDesignable |= IsFunction(p.designable);
             needScriptable |= IsFunction(p.scriptable);
@@ -612,96 +609,36 @@ void Generator::GenerateMetaCall()
             needUser |= IsFunction(p.user);
         }
 
-        OS << "#ifndef QT_NO_PROPERTIES\n    ";
+        OS << "    ";
         if (MethodCount)
             OS << "else ";
 
-        // Generate the code for QMetaObject::'Action'.  calls 'Functor' to generate the  code for
-        // each properties
-        auto HandlePropertyAction = [&](bool Need, const char *Action,
-                                        const std::function<void(const PropertyDef &)> &Functor) {
+        OS << " if (_c == QMetaObject::ReadProperty || _c == QMetaObject::WriteProperty\n"
+              "            || _c == QMetaObject::ResetProperty || _c == QMetaObject::RegisterPropertyMetaType) {\n"
+              "        if (_id < " << CDef->Properties.size() <<  ")\n"
+              "            qt_static_metacall(this, _c, _id, _a);\n"
+              "        _id -= " << CDef->Properties.size() <<  ";\n"
+              "    }\n";
+
+        // Helper for all the QMetaObject::QueryProperty*
+        typedef std::string (PropertyDef::*Accessor);
+        auto HandleQueryPropertyAction = [&](bool Need, const char *Action, Accessor A) {
+            OS << " else ";
             OS << "if (_c == QMetaObject::" << Action << ") {\n";
             if (Need) {
                 OS << "        switch (_id) {\n";
                 int I = 0;
                 for (const PropertyDef &p : CDef->Properties) {
                     OS << "        case " << (I++) <<": ";
-                    Functor(p);
+                    const std::string &S = (p.*A);
+                    if (!S.empty() && S[S.size()-1] == ')')
+                        OS << "*reinterpret_cast<bool*>(_a[0]) = " << S << "; ";
                     OS << "break;\n";
                 }
                 OS << "        default: break;\n";
                 OS << "        }";
             }
             OS << "        _id -= " << CDef->Properties.size() << ";\n    }";
-        };
-
-        HandlePropertyAction(needGet, "ReadProperty", [&](const PropertyDef &p) {
-            if (p.read.empty() && p.member.empty())
-                return;
-
-            //FIXME: enums case
-            if (p.PointerHack) {
-              OS << "_a[0] = const_cast<void*>(static_cast<const void*>(";
-              if (p.inPrivateClass.size())
-                  OS << p.inPrivateClass << "->" ;
-              OS << p.read << "())); ";
-            } else {
-              OS << "*reinterpret_cast< " << p.type << "*>(_a[0]) = ";
-              if (p.inPrivateClass.size())
-                  OS << p.inPrivateClass << "->" ;
-              if (!p.read.empty())
-                  OS << p.read << "(); ";
-              else
-                  OS << p.member << "; ";
-            }
-        });
-        OS << " else ";
-        HandlePropertyAction(needSet, "WriteProperty", [&](const PropertyDef &p) {
-            if (p.constant)
-                return;
-            if (!p.write.empty()) {
-                if (p.inPrivateClass.size())
-                    OS << p.inPrivateClass << "->" ;
-                OS << p.write << "(*reinterpret_cast< " << p.type << "*>(_a[0])); ";
-            } else if (!p.member.empty()) {
-                std::string M = p.member;
-                std::string A = "*reinterpret_cast< " + p.type + "*>(_a[0])";
-                if (p.inPrivateClass.size())
-                    M = p.inPrivateClass + "->" + M;
-                if (p.notify.notifyId >= 0) {
-                    OS << "\n"
-                          "            if (" << M << " != " << A << ") {\n"
-                          "                " << M << " = " << A << ";\n"
-                          "                Q_EMIT " << p.notify.Str << "(";
-                    if (p.notify.MD->getMinRequiredArguments() > 0)
-                        OS << M;
-                    OS << ");\n"
-                          "            } ";
-                } else {
-                    OS << M << " = " << A << "; ";
-                }
-            }
-        });
-        OS << " else ";
-        HandlePropertyAction(needReset, "ResetProperty", [&](const PropertyDef &p) {
-            if (p.reset.empty() || p.reset[p.reset.size()-1] != ')')
-                return;
-
-            if (p.inPrivateClass.size())
-                OS << p.inPrivateClass << "->" ;
-            OS << p.reset << "; ";
-        });
-
-        // Helper for all the QMetaObject::QueryProperty*
-        typedef std::string (PropertyDef::*Accessor);
-        auto HandleQueryPropertyAction = [&](bool Need, const char *Action, Accessor A) {
-            OS << " else ";
-            HandlePropertyAction(Need, Action, [&](const PropertyDef &p) {
-                const std::string &S = (p.*A);
-                if (S.empty() || S[S.size()-1] != ')')
-                    return;
-                OS << "*reinterpret_cast<bool*>(_a[0]) = " << S << "; ";
-            });
         };
 
         HandleQueryPropertyAction(needDesignable, "QueryPropertyDesignable", &PropertyDef::designable);
@@ -711,14 +648,8 @@ void Generator::GenerateMetaCall()
         HandleQueryPropertyAction(needUser, "QueryPropertyUser", &PropertyDef::user);
         HandleQueryPropertyAction(needUser, "QueryPropertyUser", &PropertyDef::user);
 
-        OS << " else if (_c == QMetaObject::RegisterPropertyMetaType) {\n"
-              "        if (_id < " << CDef->Properties.size() <<  ")\n"
-              "            qt_static_metacall(this, _c, _id, _a);\n"
-              "        _id -= " << CDef->Properties.size() <<  ";\n"
-              "    }\n"
-              "#endif // QT_NO_PROPERTIES\n";
     }
-    OS << "    return _id;"
+    OS << "\n    return _id;"
           "}\n";
 }
 
@@ -755,10 +686,15 @@ void Generator::GenerateStaticMetaCall()
     if (MethodCount) {
         if(NeedElse) OS << " else ";
         NeedElse = true;
-        OS << "if (_c == QMetaObject::InvokeMetaMethod) {\n"
-//            "        Q_ASSERT(staticMetaObject.cast(_o));\n"
-              "        " << ClassName <<" *_t = static_cast<" << ClassName << " *>(_o);\n"
-              "        switch(_id) {\n" ;
+        OS << "if (_c == QMetaObject::InvokeMetaMethod) {\n";
+        if (CDef->HasQObject) {
+//          OS << "        Q_ASSERT(staticMetaObject.cast(_o));\n";
+            OS << "        " << ClassName <<" *_t = static_cast<" << ClassName << " *>(_o);\n";
+        } else {
+            OS << "        " << ClassName <<" *_t = reinterpret_cast<" << ClassName << " *>(_o);\n";
+        }
+
+        OS << "        switch(_id) {\n" ;
         int MethodIndex = 0;
         auto GenerateInvokeMethod = [&](const clang::CXXMethodDecl *MD, int Clone) {
             if (!MD->getIdentifier())
@@ -879,6 +815,108 @@ void Generator::GenerateStaticMetaCall()
     if (!CDef->Properties.empty()) {
         if(NeedElse) OS << " else ";
         NeedElse = true;
+
+        bool needGet = false;
+        //bool needTempVarForGet = false;
+        bool needSet = false;
+        bool needReset = false;
+        for (const PropertyDef &p : CDef->Properties) {
+            needGet |= !p.read.empty() || !p.member.empty();
+            /*if (!p.read.empty())
+                needTempVarForGet |= (p.gspec != PropertyDef::PointerSpec
+                && p.gspec != PropertyDef::ReferenceSpec);*/
+            needSet |= !p.write.empty() || (!p.member.empty() && !p.constant);
+            needReset |= !p.reset.empty();
+        }
+
+
+        // Generate the code for QMetaObject::'Action'.  calls 'Functor' to generate the  code for
+        // each properties
+        auto HandlePropertyAction = [&](bool Need, const char *Action,
+                                        const std::function<void(const PropertyDef &)> &Functor) {
+            OS << "if (_c == QMetaObject::" << Action << ") {\n";
+            if (Need) {
+                if (CDef->HasQObject) {
+                    // OS << "        Q_ASSERT(staticMetaObject.cast(_o));\n";
+                    OS << "        " << ClassName <<" *_t = static_cast<" << ClassName << " *>(_o);\n";
+                } else {
+                    OS << "        " << ClassName <<" *_t = reinterpret_cast<" << ClassName << " *>(_o);\n";
+                }
+                OS << "        switch (_id) {\n";
+                int I = 0;
+                for (const PropertyDef &p : CDef->Properties) {
+                    OS << "        case " << (I++) <<": ";
+                    Functor(p);
+                    OS << "break;\n";
+                }
+                OS << "        default: break;\n";
+                OS << "        }";
+            }
+            OS << "        _id -= " << CDef->Properties.size() << ";\n    }";
+        };
+
+        HandlePropertyAction(needGet, "ReadProperty", [&](const PropertyDef &p) {
+            if (p.read.empty() && p.member.empty())
+                return;
+
+            std::string Prefix = "_t->";
+            if (p.inPrivateClass.size()) {
+                Prefix += p.inPrivateClass;
+                Prefix += "->";
+            }
+
+            //FIXME: enums case
+            if (p.PointerHack) {
+              OS << "_a[0] = const_cast<void*>(static_cast<const void*>(" << Prefix << p.read << "())); ";
+            } else {
+              OS << "*reinterpret_cast< " << p.type << "*>(_a[0]) = " << Prefix;
+              if (!p.read.empty())
+                  OS << p.read << "(); ";
+              else
+                  OS << p.member << "; ";
+            }
+        });
+        OS << " else ";
+        HandlePropertyAction(needSet, "WriteProperty", [&](const PropertyDef &p) {
+            if (p.constant)
+                return;
+
+            std::string Prefix = "_t->";
+            if (p.inPrivateClass.size()) {
+                Prefix += p.inPrivateClass;
+                Prefix += "->";
+            }
+
+            if (!p.write.empty()) {
+                OS << Prefix << p.write << "(*reinterpret_cast< " << p.type << "*>(_a[0])); ";
+            } else if (!p.member.empty()) {
+                std::string M = Prefix + p.member;
+                std::string A = "*reinterpret_cast< " + p.type + "*>(_a[0])";
+                if (p.notify.notifyId >= 0) {
+                    OS << "\n"
+                          "            if (" << M << " != " << A << ") {\n"
+                          "                " << M << " = " << A << ";\n"
+                          "                Q_EMIT _t->" << p.notify.Str << "(";
+                    if (p.notify.MD->getMinRequiredArguments() > 0)
+                        OS << M;
+                    OS << ");\n"
+                          "            } ";
+                } else {
+                    OS << M << " = " << A << "; ";
+                }
+            }
+        });
+        OS << " else ";
+        HandlePropertyAction(needReset, "ResetProperty", [&](const PropertyDef &p) {
+            if (p.reset.empty() || p.reset[p.reset.size()-1] != ')')
+                return;
+            std::string Prefix = "_t->";
+            if (p.inPrivateClass.size()) {
+                Prefix += p.inPrivateClass;
+                Prefix += "->";
+            }
+            OS << Prefix << p.reset << "; ";
+        });
 
         OS << "if (_c == QMetaObject::RegisterPropertyMetaType) {\n"
               "        switch (_id) {\n"

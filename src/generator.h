@@ -77,7 +77,8 @@ enum MethodFlags  {
 };
 enum MetaObjectFlags {
     DynamicMetaObject = 0x01,
-    RequiresVariantMetaObject = 0x02
+    RequiresVariantMetaObject = 0x02,
+    PropertyAccessInStaticMetaCall = 0x04
 };
 enum MetaDataFlags {
     IsUnresolvedType = 0x80000000,
