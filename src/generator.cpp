@@ -242,6 +242,24 @@ void Generator::GenerateFunctionParameters(const std::vector< T* >& V, const cha
     });
 }
 
+// return true if a staticMetaObject is found in the bases
+static bool hasStaticMetaObject(clang::QualType T) {
+    auto RD = T->getAsCXXRecordDecl();
+    if (!RD)
+        return false;
+
+    for (auto it = RD->decls_begin(); it != RD->decls_end(); ++it) {
+        if (const clang::NamedDecl *Sub = llvm::dyn_cast<const clang::NamedDecl>(*it)) {
+            if (Sub->getIdentifier() && Sub->getName() == "staticMetaObject")
+                return true;
+        }
+    }
+
+    if (RD->getNumBases()) {
+        return hasStaticMetaObject(RD->bases_begin()->getType());
+    }
+    return false;
+}
 
 
 Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTContext& Ctx, MocNg* Moc) :
@@ -253,8 +271,11 @@ Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTCont
 
     QualName = clang::QualType(CDef->Record->getTypeForDecl(), 0).getAsString(PrintPolicy);
 
-    if (CDef->Record->getNumBases())
-        BaseName = CDef->Record->bases_begin()->getType().getAsString(PrintPolicy);
+    if (CDef->Record->getNumBases()) {
+        auto Base = CDef->Record->bases_begin()->getType();
+        BaseName = Base.getAsString(PrintPolicy);
+        BaseHasStaticMetaObject = hasStaticMetaObject(Base);
+    }
 
     MethodCount = CountMethod(CDef->Signals) + CountMethod(CDef->Slots) + CountMethod(CDef->Methods) + CDef->PrivateSlotCount;
 }
@@ -484,7 +505,7 @@ void Generator::GenerateCode()
 
     OS << "\nconst QMetaObject " << QualName << "::staticMetaObject = {\n"
           "    { ";
-    if (BaseName.empty()) OS << "0";
+    if (BaseName.empty() || (CDef->HasQGadget && !BaseHasStaticMetaObject)) OS << "0";
     else OS << "&" << BaseName << "::staticMetaObject";
 
     OS << ", qt_meta_stringdata_"<< QualifiedClassNameIdentifier <<".data,\n"

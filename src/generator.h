@@ -101,6 +101,7 @@ class Generator {
 
     std::string QualName;
     std::string BaseName;
+    bool BaseHasStaticMetaObject = false;
     int MethodCount;
 
     clang::ASTContext &Ctx;
