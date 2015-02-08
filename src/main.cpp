@@ -181,6 +181,8 @@ struct MocNGASTConsumer : public MocASTConsumer {
             Out << "#include <QtCore/qplugin.h>\n";
         }
 
+        Out << "#include <QtCore/qbytearray.h>\n";
+
         Out << "#if !defined(Q_MOC_OUTPUT_REVISION)\n"
                "#error \"The header file '" << InFile << "' doesn't include <QObject>.\"\n"
                "#elif Q_MOC_OUTPUT_REVISION != " << mocOutputRevision << "\n"
