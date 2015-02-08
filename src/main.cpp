@@ -52,7 +52,7 @@ struct MocOptions {
 /* Proxy that changes some errors into warnings  */
 struct MocDiagConsumer : clang::DiagnosticConsumer {
     std::unique_ptr<DiagnosticConsumer> Proxy;
-    MocDiagConsumer(DiagnosticConsumer *Previous) : Proxy(Previous)  {}
+    MocDiagConsumer(std::unique_ptr<DiagnosticConsumer> Previous) : Proxy(std::move(Previous))  {}
 
     int HadRealError = 0;
 
@@ -204,9 +204,12 @@ struct MocNGASTConsumer : public MocASTConsumer {
 
 class MocAction : public clang::ASTFrontendAction {
 protected:
-
-    virtual clang::ASTConsumer *CreateASTConsumer(clang::CompilerInstance &CI,
-                                           llvm::StringRef InFile) override {
+#if CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR <= 5
+    clang::ASTConsumer *
+#else
+    std::unique_ptr<clang::ASTConsumer>
+#endif
+    CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef InFile) override {
 
         CI.getFrontendOpts().SkipFunctionBodies = true;
         CI.getPreprocessor().enableIncrementalProcessing(true);
@@ -216,17 +219,18 @@ protected:
         //enable all the extension
         CI.getLangOpts().MicrosoftExt = true;
         CI.getLangOpts().DollarIdents = true;
-#if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
         CI.getLangOpts().CPlusPlus11 = true;
-#else
-        CI.getLangOpts().CPlusPlus0x = true;
-#endif
+#if CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR <= 5
         CI.getLangOpts().CPlusPlus1y = true;
+#else
+        CI.getLangOpts().CPlusPlus14 = true;
+#endif
         CI.getLangOpts().GNUMode = true;
 
-        CI.getDiagnostics().setClient(new MocDiagConsumer{CI.getDiagnostics().takeClient()});
+        CI.getDiagnostics().setClient(new MocDiagConsumer(
+            std::unique_ptr<clang::DiagnosticConsumer>(CI.getDiagnostics().takeClient())));
 
-        return new MocNGASTConsumer(CI, InFile);
+        return maybe_unique(new MocNGASTConsumer(CI, InFile));
     }
 
 public:

@@ -15,7 +15,7 @@ http://code.woboq.org/mocng/src/
 
 COMPILE:
 
-You need llvm and clang (3.2 or 3.3).
+You need llvm and clang (3.4, 3.5 or 3.6).
 Then run cmake and make (adapt your paths)
 
  cmake . -DCMAKE_CXX_COMPILER=/opt/llvm/bin/clang++  -DLLVM_CONFIG_EXECUTABLE=/opt/llvm/bin/llvm-config
@@ -68,4 +68,4 @@ Known issue:
    the header don't include QObject
 
  * FAIL!  : tst_Moc::unterminatedFunctionMacro()
-   moc -E  to preprocess nehave differently
+   moc -E  to preprocess behave differently

@@ -27,7 +27,7 @@ namespace clang {
 clang::FileID CreateFileIDForMemBuffer(clang::Preprocessor &PP, llvm::MemoryBuffer *Buf, clang::SourceLocation Loc)
 {
 #if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 4
-    return PP.getSourceManager().createFileID(Buf, clang::SrcMgr::C_User, 0, 0, Loc);
+    return PP.getSourceManager().createFileID(maybe_unique(Buf), clang::SrcMgr::C_User, 0, 0, Loc);
 #else
     return PP.getSourceManager().createFileIDForMemBuffer(Buf, clang::SrcMgr::C_User, 0, 0, Loc);
 #endif

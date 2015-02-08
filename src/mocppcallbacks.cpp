@@ -22,7 +22,7 @@
 
 void MocPPCallbacks::InjectQObjectDefs(clang::SourceLocation Loc) {
     #include "qobjectdefs-injected.h"
-    auto Buf = llvm::MemoryBuffer::getMemBuffer(Injected, "qobjectdefs-injected.moc");
+    auto Buf = maybe_unique(llvm::MemoryBuffer::getMemBuffer(Injected, "qobjectdefs-injected.moc"));
     Loc = PP.getSourceManager().getFileLoc(Loc);
     PP.EnterSourceFile( CreateFileIDForMemBuffer(PP, Buf, Loc), nullptr, Loc);
 }

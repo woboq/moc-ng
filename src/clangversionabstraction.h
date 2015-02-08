@@ -21,6 +21,7 @@
 
 #include <clang/Basic/SourceLocation.h>
 #include <clang/Basic/Version.h>
+#include <memory>
 
 namespace clang {
     class Preprocessor;
@@ -29,3 +30,12 @@ namespace clang {
 // Abstract the API changes in clang
 
 clang::FileID CreateFileIDForMemBuffer(clang::Preprocessor &PP, llvm::MemoryBuffer *Buf, clang::SourceLocation Loc);
+
+// clang 3.6 uses unique_ptr in many places that was not using it before
+template<typename T> struct MaybeUnique {
+    T *val;
+    operator T*() { return val; }
+    template <typename X> operator std::unique_ptr<X> () && {  return std::unique_ptr<X>(val); }
+};
+template<typename T> MaybeUnique<T> maybe_unique(T* val) { return {val}; }
+template<typename T> MaybeUnique<T> maybe_unique(std::unique_ptr<T> val) { return {val.release()}; }

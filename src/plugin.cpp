@@ -100,7 +100,7 @@ class MocPluginASTConsumer : public MocASTConsumer {
         std::string code = generate();
         if (!code.empty()) {
           objects.clear();
-          auto Buf = llvm::MemoryBuffer::getMemBufferCopy( code, "qt_moc");
+          auto Buf = maybe_unique(llvm::MemoryBuffer::getMemBufferCopy( code, "qt_moc"));
           clang::SourceLocation Loc = PP.getSourceManager().getFileLoc(D.getSingleDecl()->getLocEnd());
           PP.EnterSourceFile(CreateFileIDForMemBuffer(PP, Buf, Loc), nullptr, Loc);
         } else {
@@ -186,8 +186,13 @@ public:
 
 class MocPluginAction : public clang::PluginASTAction {
 protected:
-    clang::ASTConsumer *CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef f) override {
-        return new MocPluginASTConsumer(CI);
+    #if CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR <= 5
+    clang::ASTConsumer *
+    #else
+    std::unique_ptr<clang::ASTConsumer>
+    #endif
+    CreateASTConsumer(clang::CompilerInstance &CI, llvm::StringRef f) override {
+        return maybe_unique(new MocPluginASTConsumer(CI));
     }
     bool ParseArgs(const clang::CompilerInstance& CI, const std::vector< std::string >& arg) override {
         return true;

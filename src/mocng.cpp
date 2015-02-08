@@ -55,7 +55,7 @@ static void parseInterfaces(ClassDef &Def, clang::Expr *Content, clang::Sema &Se
         return;
     }
 
-    llvm::MemoryBuffer* Buf = llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_INTERFACES");
+    llvm::MemoryBuffer* Buf = maybe_unique(llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_INTERFACES"));
     clang::Lexer Lex(CreateFileIDForMemBuffer(PP, Buf, Content->getExprLoc()),
                      Buf, PP.getSourceManager(), PP.getLangOpts());
 
@@ -117,7 +117,7 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
         return;
     }
 
-    llvm::MemoryBuffer* Buf = llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_PLUGIN_METADATA");
+    llvm::MemoryBuffer* Buf = maybe_unique(llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_PLUGIN_METADATA"));
     clang::Lexer Lex(CreateFileIDForMemBuffer(PP, Buf, Content->getExprLoc()),
                      Buf, PP.getSourceManager(), PP.getLangOpts());
 
@@ -160,7 +160,11 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
 #if CLANG_VERSION_MAJOR!=3 || CLANG_VERSION_MINOR>3
                 Val->getLocStart(),
 #endif
-                Filename, false, nullptr, CurDir, nullptr, nullptr, nullptr);
+                Filename, false, nullptr,
+#if CLANG_VERSION_MAJOR!=3 || CLANG_VERSION_MINOR>5
+                nullptr,
+#endif
+                CurDir, nullptr, nullptr, nullptr);
 
             if (!File) {
                 PP.getDiagnostics().Report(GetFromLiteral(StrToks.front(), Val, PP), clang::diag::err_pp_file_not_found)
@@ -202,7 +206,7 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
         return;
     }
 
-    llvm::MemoryBuffer* Buf = llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_ENUMS");
+    llvm::MemoryBuffer* Buf = maybe_unique(llvm::MemoryBuffer::getMemBufferCopy(Val->getString(), "Q_ENUMS"));
     clang::Lexer Lex(CreateFileIDForMemBuffer(PP, Buf, Content->getExprLoc()),
                      Buf, PP.getSourceManager(), PP.getLangOpts());
 

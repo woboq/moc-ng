@@ -51,7 +51,7 @@ public:
     PropertyParser(llvm::StringRef Text, clang::SourceLocation Loc, clang::Sema &Sema,
                    clang::CXXRecordDecl *RD) :
         Sema(Sema), PP(Sema.getPreprocessor()),
-        Buf(llvm::MemoryBuffer::getMemBufferCopy(Text/*, "Q_PROPERTY"*/)),
+        Buf(maybe_unique(llvm::MemoryBuffer::getMemBufferCopy(Text/*, "Q_PROPERTY"*/))),
 //        Lexer(PP.getSourceManager().getSpellingLoc(Loc), PP.getLangOpts(), Text.begin(), Text.begin(), Text.end()),
         Lexer(CreateFileIDForMemBuffer(PP, Buf, Loc),
               Buf, PP.getSourceManager(), PP.getLangOpts()),

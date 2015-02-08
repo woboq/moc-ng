@@ -19,10 +19,12 @@
 
 #include "mocppcallbacks.h"
 #include "mocastconsumer.h"
+#include "clangversionabstraction.h"
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/DeclTemplate.h>
 #include <clang/Sema/Sema.h>
+
 
 
 #include <iostream>
@@ -30,7 +32,7 @@
 void MocASTConsumer::Initialize(clang::ASTContext& Ctx) {
     ctx = &Ctx;
     PPCallbacks = new MocPPCallbacks(ci.getPreprocessor(), Moc.Tags);
-    ci.getPreprocessor().addPPCallbacks(PPCallbacks);
+    ci.getPreprocessor().addPPCallbacks(maybe_unique(PPCallbacks));
 //   ci.getDiagnostics().setClient(new DiagnosticClient(), true);
 }
 
