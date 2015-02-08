@@ -60,6 +60,8 @@ static const char Injected[] = R"-(
 #undef Q_INVOKABLE
 #undef Q_SIGNAL
 #undef Q_SLOT
+#undef Q_ENUM
+#undef Q_FLAG
 
 #define Q_CLASSINFO(name, value)  __extension__ _Static_assert(sizeof (name, value), "qt_classinfo");
 #define Q_PLUGIN_METADATA(x) QT_ANNOTATE_CLASS(qt_plugin_metadata, x)
@@ -70,6 +72,11 @@ static const char Injected[] = R"-(
 #define Q_REVISION(v) __attribute__((annotate("qt_revision:" QT_STRINGIFY2(v))))
 #define Q_ENUMS(x) QT_ANNOTATE_CLASS(qt_enums, x)
 #define Q_FLAGS(x) QT_ANNOTATE_CLASS(qt_flags, x)
+#define Q_ENUM_IMPL(ENUM) \
+    friend Q_DECL_CONSTEXPR const QMetaObject *qt_getEnumMetaObject(ENUM) Q_DECL_NOEXCEPT { return &staticMetaObject; } \
+    friend Q_DECL_CONSTEXPR const char *qt_getEnumName(ENUM) Q_DECL_NOEXCEPT { return #ENUM; }
+#define Q_ENUM(x) Q_ENUMS(x) Q_ENUM_IMPL(x)
+#define Q_FLAG(x) Q_FLAGS(x) Q_ENUM_IMPL(x)
 #define Q_SCRIPTABLE  __attribute__((annotate("qt_scriptable")))
 #define Q_INVOKABLE  __attribute__((annotate("qt_invokable")))
 #define Q_SIGNAL __attribute__((annotate("qt_signal")))
