@@ -172,7 +172,7 @@ void Generator::GenerateTypeInfo(clang::QualType Type)
 
     // Remove the spaces;
     int k = 0;
-    for (int i = 0; i < TypeString.size(); ++i) {
+    for (uint i = 0; i < TypeString.size(); ++i) {
         char C = TypeString[i];
         if (C == ' ') {
             if (k == 0)
@@ -190,7 +190,7 @@ void Generator::GenerateTypeInfo(clang::QualType Type)
     TypeString.resize(k);
 
     //adjust unsigned
-    int UPos = 0;
+    uint UPos = 0;
     while ((UPos = TypeString.find("unsigned ", UPos)) < TypeString.size()) {
         const int L = sizeof("unsigned ") - 1; // don't include \0
         llvm::StringRef R(&TypeString[UPos + L],
@@ -715,7 +715,7 @@ void Generator::GenerateStaticMetaCall()
         ForEachMethod(CDef->Constructors, [&](const clang::CXXConstructorDecl *MD, int C) {
             OS << "        case " << (CtorIndex++) << ": { QObject *_r = new " << ClassName << "(";
 
-            for (int j = 0 ; j < MD->getNumParams() - C; ++j) {
+            for (uint j = 0 ; j < MD->getNumParams() - C; ++j) {
                 if (j) OS << ",";
                 if (j == MD->getNumParams() - 1 && HasPrivateSignal(MD))
                     OS << "QPrivateSignal()";
@@ -751,7 +751,7 @@ void Generator::GenerateStaticMetaCall()
 
             OS << "_t->" << MD->getName() << "(";
 
-            for (int j = 0 ; j < MD->getNumParams() - Clone; ++j) {
+            for (uint j = 0 ; j < MD->getNumParams() - Clone; ++j) {
                 if (j) OS << ",";
                 if (j == MD->getNumParams() - 1 && HasPrivateSignal(MD))
                     OS << "QPrivateSignal()";
@@ -777,7 +777,7 @@ void Generator::GenerateStaticMetaCall()
                 if (!IsVoid)
                     OS << "{ " << P.ReturnType << " _r =  ";
                 OS << "_t->" << P.InPrivateClass << "->" << P.Name << "(";
-                for (int j = 0 ; j < P.Args.size() - Clone; ++j) {
+                for (uint j = 0 ; j < P.Args.size() - Clone; ++j) {
                     if (j) OS << ",";
                     OS << "*reinterpret_cast< " << P.Args[j] << " *>(_a[" << (j+1) << "])";
                 }
@@ -840,7 +840,7 @@ void Generator::GenerateStaticMetaCall()
                 continue;
             OS << "        {\n"
                   "            typedef " << getResultType(MD).getAsString(PrintPolicy) << " (" << ClassName << "::*_t)(";
-            for (int j = 0 ; j < MD->getNumParams(); ++j) {
+            for (uint j = 0 ; j < MD->getNumParams(); ++j) {
                 if (j) OS << ",";
                 OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy);
             }
@@ -893,7 +893,7 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
 
     OS << "\n// SIGNAL " << Idx << "\n"
        << getResultType(MD).getAsString(PrintPolicy) << " " << QualName << "::" << MD->getName() + "(";
-    for (int j = 0 ; j < MD->getNumParams(); ++j) {
+    for (uint j = 0 ; j < MD->getNumParams(); ++j) {
         if (j) OS << ",";
         OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy);
         if (!(j == MD->getNumParams() - 1 && HasPrivateSignal(MD)))
@@ -923,7 +923,7 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
         else OS << "&_t0";
 
 
-        for (int j = 0 ; j < NumParam; ++j) {
+        for (uint j = 0 ; j < NumParam; ++j) {
             if (MD->getParamDecl(j)->getType().isVolatileQualified())
                 OS << ", const_cast<void*>(reinterpret_cast<const volatile void*>(&_t" << (j+1) << "))";
             else

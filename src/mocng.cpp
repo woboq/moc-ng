@@ -68,9 +68,8 @@ static void parseInterfaces(ClassDef &Def, clang::Expr *Content, clang::Sema &Se
         if (Tok.is(clang::tok::eof))
             break;
 
-        clang::IdentifierInfo* II = nullptr;
         if (Tok.is(clang::tok::raw_identifier))
-            II = PP.LookUpIdentifierInfo(Tok);
+            PP.LookUpIdentifierInfo(Tok);
 
         if (Tok.is(clang::tok::identifier)) {
             if (Append)
@@ -483,7 +482,7 @@ bool MocNg::ShouldRegisterMetaType(clang::QualType T)
     if (TD) {
         if (!TD->hasDefinition())
             return false;
-        for (int I = 0; I < TD->getTemplateArgs().size(); ++I) {
+        for (uint I = 0; I < TD->getTemplateArgs().size(); ++I) {
             const auto &Arg = TD->getTemplateArgs().get(I);
             if (Arg.getKind() == clang::TemplateArgument::Type) {
                 if (!ShouldRegisterMetaType(Arg.getAsType()))
