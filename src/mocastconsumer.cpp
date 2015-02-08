@@ -1,5 +1,5 @@
 /****************************************************************************
- *  Copyright (C) 2013-2014 Woboq GmbH
+ *  Copyright (C) 2013-2015 Woboq GmbH
  *  Olivier Goffart <contact at woboq.com>
  *  http://woboq.com/
  *
