@@ -37,10 +37,15 @@ public:
     void InjectQObjectDefs(clang::SourceLocation Loc);
 
 protected:
-#if  CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
+#if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR >= 7
+    typedef const clang::MacroDefinition &MacroParam;
+    typedef const clang::MacroDirective *MacroParam2;
+#elif CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
     typedef const clang::MacroDirective *MacroParam;
+    typedef const clang::MacroDirective *MacroParam2;
 #else
     typedef const clang::MacroInfo *MacroParam;
+    typedef MacroParam MacroParam2;
 #endif
 
 
@@ -62,7 +67,7 @@ protected:
 
     void Defined(const clang::Token& MacroNameTok
 #if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
-            ,MacroParam = 0
+            ,MacroParam = {}
 #endif
 #if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 3
             , clang::SourceRange = {}
@@ -93,7 +98,7 @@ protected:
         //TODO: handle embedded Ifs
     }
 
-    void MacroDefined(const clang::Token& MacroNameTok, MacroParam) override {
+    void MacroDefined(const clang::Token& MacroNameTok, MacroParam2) override {
         if (!InQMOCRUN)
             return;
         PossibleTags.insert(MacroNameTok.getIdentifierInfo()->getName());
