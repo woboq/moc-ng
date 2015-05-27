@@ -516,7 +516,7 @@ void Generator::GenerateCode()
     OS << ", qt_meta_stringdata_"<< QualifiedClassNameIdentifier <<".data,\n"
           "      qt_meta_data_" << QualifiedClassNameIdentifier << ", ";
 
-    bool HasStaticMetaCall = CDef->HasQObject || !CDef->Methods.empty() || !CDef->Properties.empty();
+    bool HasStaticMetaCall = CDef->HasQObject || !CDef->Methods.empty() || !CDef->Properties.empty() || !CDef->Constructors.empty();
     if (HasStaticMetaCall) OS << "qt_static_metacall, ";
     else OS << "0, ";
 
@@ -663,9 +663,11 @@ void Generator::GenerateStaticMetaCall()
         OS << "    if (_c == QMetaObject::CreateInstance) {\n"
               "        switch (_id) {\n";
 
+        llvm::StringRef resultType = CDef->HasQObject ? "QObject" : "void";
+
         int CtorIndex = 0;
         ForEachMethod(CDef->Constructors, [&](const clang::CXXConstructorDecl *MD, int C) {
-            OS << "        case " << (CtorIndex++) << ": { QObject *_r = new " << ClassName << "(";
+            OS << "        case " << (CtorIndex++) << ": { " << resultType << " *_r = new " << ClassName << "(";
 
             for (uint j = 0 ; j < MD->getNumParams() - C; ++j) {
                 if (j) OS << ",";
@@ -674,7 +676,7 @@ void Generator::GenerateStaticMetaCall()
                 else
                     OS << "*reinterpret_cast< " << Ctx.getPointerType(MD->getParamDecl(j)->getType().getNonReferenceType().getUnqualifiedType()).getAsString(PrintPolicy) << " >(_a[" << (j+1) << "])";
             }
-            OS << ");\n            if (_a[0]) *reinterpret_cast<QObject**>(_a[0]) = _r; } break;\n";
+            OS << ");\n            if (_a[0]) *reinterpret_cast<" << resultType << "**>(_a[0]) = _r; } break;\n";
         });
         OS << "        default: break;\n"
               "        }\n"
