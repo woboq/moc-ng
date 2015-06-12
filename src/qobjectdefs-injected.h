@@ -21,8 +21,13 @@
 static const char Injected[] = R"-(
 #if defined(Q_MOC_OUTPUT_REVISION) || defined(Q_MOC_RUN)
 
+#ifdef Q_COMPILER_VARIADIC_MACROS
+#define QT_ANNOTATE_CLASS(type, ...) \
+    __extension__ _Static_assert(sizeof (#__VA_ARGS__), #type);
+#else
 #define QT_ANNOTATE_CLASS(type, anotation) \
     __extension__ _Static_assert(sizeof (#anotation), #type);
+#endif
 #define QT_ANNOTATE_CLASS2(type, a1, a2) \
     __extension__ _Static_assert(sizeof (#a1, #a2), #type);
 
@@ -66,7 +71,11 @@ static const char Injected[] = R"-(
 #define Q_CLASSINFO(name, value)  __extension__ _Static_assert(sizeof (name, value), "qt_classinfo");
 #define Q_PLUGIN_METADATA(x) QT_ANNOTATE_CLASS(qt_plugin_metadata, x)
 #define Q_INTERFACES(x) QT_ANNOTATE_CLASS(qt_interfaces, x)
+#ifdef Q_COMPILER_VARIADIC_MACROS
+#define Q_PROPERTY(...) QT_ANNOTATE_CLASS(qt_property, __VA_ARGS__)
+#else
 #define Q_PROPERTY(text) QT_ANNOTATE_CLASS(qt_property, text)
+#endif
 #define Q_PRIVATE_PROPERTY(d, text)  QT_ANNOTATE_CLASS2(qt_private_property, d, text)
 
 #define Q_REVISION(v) __attribute__((annotate("qt_revision:" QT_STRINGIFY2(v))))
