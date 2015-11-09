@@ -201,4 +201,4 @@ protected:
 
 
 static clang::FrontendPluginRegistry::Add<MocPluginAction>
-X("moc", "create the dxr index database");
+X("moc", "Qt MetaObjectCompiler");
