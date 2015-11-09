@@ -431,6 +431,7 @@ PropertyDef PropertyParser::parseProperty(bool PrivateProperty) {
         clang::SourceLocation ParamLoc = OriginalLocation(CurrentTok.getLocation());
         if (CurrentTok.getKind() == clang::tok::l_paren) {
             v = LexemUntil(clang::tok::r_paren);
+            v = v.substr(1, v.size() - 2); // remove the '(' and ')'
         } else if (Test(clang::tok::identifier)) {
             IsIdent = true;
             v = Spelling();
