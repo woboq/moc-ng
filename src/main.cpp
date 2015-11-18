@@ -112,25 +112,15 @@ struct MocNGASTConsumer : public MocASTConsumer {
     std::string InFile;
     MocNGASTConsumer(clang::CompilerInstance& ci, llvm::StringRef InFile) : MocASTConsumer(ci), InFile(InFile) { }
 
+
+#if CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR < 8
+    // Clang 3.8 changed when Initialize is called. It is now called before the main file has been entered.
+    // But with Clang < 3.8 it is called after, and PPCallbacks::FileChanged is not called when entering the main file
     void Initialize(clang::ASTContext& Ctx) override {
         MocASTConsumer::Initialize(Ctx);
-
-        if (llvm::StringRef(InFile).endswith("global/qnamespace.h")) {
-            // qnamsepace.h is a bit special because it contains all the Qt namespace enums
-            // but all the Q_ENUMS are within a Q_MOC_RUN scope, which also do all sort of things.
-
-            clang::Preprocessor &PP = ci.getPreprocessor();
-            clang::MacroInfo *MI = PP.AllocateMacroInfo({});
-            MI->setIsBuiltinMacro();
-#if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
-            PP.appendDefMacroDirective(PP.getIdentifierInfo("Q_MOC_RUN"), MI);
-#else
-            PP.setMacroInfo(PP.getIdentifierInfo("Q_MOC_RUN"), MI);
-#endif
-            PPCallbacks->InjectQObjectDefs({});
-        }
-
+        PPCallbacks->EnterMainFile(InFile);
     }
+#endif
 
     void HandleTagDeclDefinition(clang::TagDecl* D) override {
         // We only want to parse the Qt macro in classes that are in the main file.

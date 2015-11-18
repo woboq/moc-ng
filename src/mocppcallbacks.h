@@ -35,6 +35,7 @@ public:
 
     bool IsInMainFile = false;
     void InjectQObjectDefs(clang::SourceLocation Loc);
+    void EnterMainFile(clang::StringRef Name);
 
 protected:
 #if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR >= 7

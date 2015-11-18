@@ -27,11 +27,31 @@ void MocPPCallbacks::InjectQObjectDefs(clang::SourceLocation Loc) {
     PP.EnterSourceFile( CreateFileIDForMemBuffer(PP, Buf, Loc), nullptr, Loc);
 }
 
+void MocPPCallbacks::EnterMainFile(llvm::StringRef Name)
+{
+    if (Name.endswith("global/qnamespace.h")) {
+        // qnamsepace.h is a bit special because it contains all the Qt namespace enums
+        // but all the Q_ENUMS are within a Q_MOC_RUN scope, which also do all sort of things.
+
+        clang::MacroInfo *MI = PP.AllocateMacroInfo({});
+        MI->setIsBuiltinMacro();
+#if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2
+        PP.appendDefMacroDirective(PP.getIdentifierInfo("Q_MOC_RUN"), MI);
+#else
+        PP.setMacroInfo(PP.getIdentifierInfo("Q_MOC_RUN"), MI);
+#endif
+        InjectQObjectDefs({});
+    }
+}
+
 void MocPPCallbacks::FileChanged(clang::SourceLocation Loc, clang::PPCallbacks::FileChangeReason Reason, clang::SrcMgr::CharacteristicKind FileType, clang::FileID PrevFID) {
 
     clang::SourceManager &SM = PP.getSourceManager();
     IsInMainFile = (SM.getFileID(SM.getFileLoc(Loc)) == SM.getMainFileID());
 
+    if (IsInMainFile && Reason == EnterFile) {
+        EnterMainFile(SM.getFilename(Loc));
+    }
 
     if (Reason != ExitFile)
         return;
