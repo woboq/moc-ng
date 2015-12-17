@@ -76,4 +76,4 @@ namespace QBJS {
     };
 
     bool Parse(llvm::yaml::Node *Node, Value &Root);
-};
+}
