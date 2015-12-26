@@ -8,10 +8,10 @@ This is really two project:
   * A replacement for moc that aim to be compatible with qt's moc,
     but uses the clang libraries for the parsing step.
 
-Read the blog post:  http://woboq.com/blog/moc-with-clang.html
+Read the blog post:  https://woboq.com/blog/moc-with-clang.html
 
 BROWSE SOURCE CODE ONLINE:
-http://code.woboq.org/mocng/src/
+https://code.woboq.org/mocng/src/
 
 COMPILE:
 
