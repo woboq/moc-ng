@@ -1,7 +1,7 @@
 /****************************************************************************
- *  Copyright (C) 2013-2015 Woboq GmbH
+ *  Copyright (C) 2013-2016 Woboq GmbH
  *  Olivier Goffart <contact at woboq.com>
- *  http://woboq.com/
+ *  https://woboq.com/
  *
  *  This program is free software: you can redistribute it and/or modify
  *  it under the terms of the GNU General Public License as published by
@@ -153,7 +153,7 @@ struct MocNGASTConsumer : public MocASTConsumer {
         Out <<  "/****************************************************************************\n"
                 "** Meta object code from reading C++ file '" << InFile << "'\n"
                 "**\n"
-                "** Created by MOC-NG version " MOCNG_VERSION_STR " by Woboq [http://woboq.com]\n"
+                "** Created by MOC-NG version " MOCNG_VERSION_STR " by Woboq [https://woboq.com]\n"
                 "** WARNING! All changes made in this file will be lost!\n"
                 "*****************************************************************************/\n\n";
 
@@ -231,7 +231,7 @@ public:
 };
 
 static void showVersion(bool /*Long*/) {
-    std::cerr << "moc-ng version " MOCNG_VERSION_STR " by Woboq [http://woboq.com]" << std::endl;
+    std::cerr << "moc-ng version " MOCNG_VERSION_STR " by Woboq [https://woboq.com]" << std::endl;
 }
 
 static void showHelp() {

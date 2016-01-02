@@ -1,7 +1,7 @@
 # /****************************************************************************
-#  *  Copyright (C) 2013-2015 Woboq GmbH
+#  *  Copyright (C) 2013-2016 Woboq GmbH
 #  *  Olivier Goffart <contact at woboq.com>
-#  *  http://woboq.com/
+#  *  https://woboq.com/
 #  *
 #  *  This program is free software: you can redistribute it and/or modify
 #  *  it under the terms of the GNU General Public License as published by
