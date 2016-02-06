@@ -55,12 +55,12 @@ bool Generator::WorkaroundTests(llvm::StringRef ClassName, const clang::CXXMetho
             .Default(false);
     } else if(ClassName == "tst_QObject"){
         if (MethodName == "normalize") {
-            // unsigned long int is a builtin type, but is not registered by default, and clang mangle it
-            // as unsigned long with no way to get what was the actual string.
-            // by registering the right string we ensure that it matches
+            // "unsigned long int" is a builtin type, but is not registered by default, and clang
+            // mangle it  as "unsigned long" with no way to get what was the actual string.
+            // By registering the right string we ensure that the function is found when.
             // This is actually a bug in QMetaType that should be fixed in Qt https://codereview.qt-project.org/55193
             OS << "\n            qRegisterMetaType<unsigned long int>(\"unsigned long int\");\n            ";
-            return false; // so the normal function is cached
+            return false; // The normal function will be called
         }
     }
 
