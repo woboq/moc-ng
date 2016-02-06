@@ -93,11 +93,18 @@ static const char Injected[] = R"-(
 #endif // QT_NO_META_MACROS
 
 
-#undef Q_OBJECT_CHECK
-#define Q_OBJECT_CHECK \
-    template <typename T> inline void qt_check_for_QOBJECT_macro(const T &_q_argument) const \
-    { int i = qYouForgotTheQ_OBJECT_Macro(this, &_q_argument); i = i + 1; } \
+#undef QT_TR_FUNCTIONS
+#ifndef QT_NO_TRANSLATION
+#define QT_TR_FUNCTIONS \
+    static inline QString tr(const char *s, const char *c = Q_NULLPTR, int n = -1) \
+    { return staticMetaObject.tr(s, c, n); } \
+    QT_DEPRECATED static inline QString trUtf8(const char *s, const char *c = Q_NULLPTR, int n = -1) \
+    { return staticMetaObject.tr(s, c, n); } \
     QT_ANNOTATE_CLASS(qt_qobject, "")
+#else
+#define QT_TR_FUNCTIONS \
+    QT_ANNOTATE_CLASS(qt_qobject, "")
+#endif
 
 #undef Q_GADGET
 #define Q_GADGET \
