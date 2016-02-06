@@ -135,4 +135,9 @@ private:
     void GenerateTypeInfo(clang::QualType Type);
     void GenerateEnums(int EnumIndex);
     void GeneratePluginMetaData(bool Debug);
+
+    // Called when emiting the code to generate the invokation of a method.
+    // Return true if the code was already emitted  (include the break;)
+    // defined in workaroundtest.cpp
+    static bool WorkaroundTests(llvm::StringRef ClassName, const clang::CXXMethodDecl* MD, llvm::raw_ostream &OS);
 };

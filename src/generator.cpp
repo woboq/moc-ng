@@ -703,6 +703,11 @@ void Generator::GenerateStaticMetaCall()
                 return;
 
             OS << "        case " << MethodIndex << ": ";
+            MethodIndex++;
+
+            if (WorkaroundTests(ClassName, MD, OS))
+                return;
+
             // Original moc don't support reference as return type: see  Moc::parseFunction
             bool IsVoid = getResultType(MD)->isVoidType() || getResultType(MD)->isReferenceType();
             if (!IsVoid)
@@ -724,7 +729,6 @@ void Generator::GenerateStaticMetaCall()
                    << " >(_a[0]) = _r; }";
             }
             OS <<  " break;\n";
-            MethodIndex++;
         };
         ForEachMethod(CDef->Signals, GenerateInvokeMethod);
         ForEachMethod(CDef->Slots, GenerateInvokeMethod);
