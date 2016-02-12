@@ -29,6 +29,9 @@ private slots:
     // from https://codereview.qt-project.org/49866/
     void connectTemplate();
 
+    // from https://codereview.qt-project.org/49865
+    void variadicTemplates();
+
 };
 
 struct MyStruct {};
@@ -187,6 +190,30 @@ void tst_Templates::connectTemplate()
     os.signalTemplate("world");
     QCOMPARE(oi.count, 100);
     QCOMPARE(oi.result, QVariant("world"));
+}
+
+// Test that the generated code compiles is disabled because it would break compiler without variadic template
+template<typename ...T> class VariadicTemplate1 : public QObject {
+    Q_OBJECT
+signals:
+    void mySignal(int);
+};
+
+template<typename ...> class VariadicTemplate2 : public QObject { Q_OBJECT };
+template<typename, int ...> class VariadicTemplate3 : public QObject {Q_OBJECT  };
+template< int ...I> class VariadicTemplate4 : public VariadicTemplate3<char, I...> { Q_OBJECT };
+template<template<typename ...> class C> class VariadicTemplate5 : public QObject { Q_OBJECT };
+
+
+void tst_Templates::variadicTemplates()
+{
+    int idx = VariadicTemplate1<int, int>::staticMetaObject.indexOfMethod("mySignal(int)");
+    QVERIFY(idx > 0);
+
+    //instantiate
+    VariadicTemplate2<int, int> a;
+    VariadicTemplate3<int, 1, 2, 3> c;
+    VariadicTemplate4<1, 2, 3> d;
 }
 
 
