@@ -1,4 +1,4 @@
 TEMPLATE = subdirs
 
-SUBDIRS += templates autoreturn
+SUBDIRS += templates autoreturn nested
 
