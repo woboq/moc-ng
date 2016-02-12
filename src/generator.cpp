@@ -28,11 +28,19 @@
 
 #include <iostream>
 
+// Remove the decltype if possible
+static clang::QualType getDesugarType(const clang::QualType &QT) {
+    if (auto DL = QT->getAs<clang::DecltypeType>()) {
+        return DL->desugar();
+    }
+    return QT;
+}
+
 /* Wrapper for the change in the name in clang 3.5 */
-template <typename T> auto getResultType(T *decl) -> decltype(decl->getResultType())
-{ return decl->getResultType(); }
-template <typename T> auto getResultType(T *decl) -> decltype(decl->getReturnType())
-{ return decl->getReturnType(); }
+template <typename T> static auto getResultType(T *decl) -> decltype(decl->getResultType())
+{ return getDesugarType(decl->getResultType()); }
+template <typename T> static auto getResultType(T *decl) -> decltype(decl->getReturnType())
+{ return getDesugarType(decl->getReturnType()); }
 
 // Returns true if the last argument of this mehod is a 'QPrivateSignal'
 static bool HasPrivateSignal(const clang::CXXMethodDecl *MD) {
@@ -169,7 +177,7 @@ void Generator::GenerateTypeInfo(clang::QualType Type)
 
     clang::PrintingPolicy Policy = PrintPolicy;
     Policy.SuppressScope = true;
-    std::string TypeString = Type.getAsString(Policy);
+    std::string TypeString = getDesugarType(Type).getAsString(Policy);
 
     // Remove the spaces;
     int k = 0;
@@ -1037,8 +1045,10 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
     if (MD->isPure())
         return;
 
+    clang::QualType ReturnType = getResultType(MD);
+
     OS << "\n// SIGNAL " << Idx << "\n" << TemplatePrefix
-       << getResultType(MD).getAsString(PrintPolicy) << " " << QualName << "::" << MD->getName() + "(";
+       << ReturnType.getAsString(PrintPolicy) << " " << QualName << "::" << MD->getName() + "(";
     for (uint j = 0 ; j < MD->getNumParams(); ++j) {
         if (j) OS << ",";
         OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy);
@@ -1052,15 +1062,15 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
         This = "const_cast< " + CDef->Record->getNameAsString()  + " *>(this)";
     }
     OS << "\n{\n";
-    bool IsVoid = getResultType(MD)->isVoidType();
+    bool IsVoid = ReturnType->isVoidType();
     unsigned int NumParam = MD->getNumParams();
     if (HasPrivateSignal(MD)) NumParam--;
     if (IsVoid && NumParam == 0) {
         OS << "    QMetaObject::activate(" << This << ", &staticMetaObject, " << Idx << ", 0);\n";
     } else {
-        std::string T = getResultType(MD).getNonReferenceType().getUnqualifiedType().getAsString(PrintPolicy);
-        if (getResultType(MD)->isPointerType()) {
-            OS << "    " << getResultType(MD).getAsString(PrintPolicy) << " _t0 = 0;\n";
+        std::string T = ReturnType.getNonReferenceType().getUnqualifiedType().getAsString(PrintPolicy);
+        if (ReturnType->isPointerType()) {
+            OS << "    " << ReturnType.getAsString(PrintPolicy) << " _t0 = 0;\n";
         } else if (!IsVoid) {
             OS << "    " << T << " _t0 = " << T << "();\n";
         }
