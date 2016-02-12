@@ -24,6 +24,8 @@ class tst_AutoReturn : public QObject
 private slots:
     void autoReturn_data();
     void autoReturn();
+
+    void autoReturnTemplate();
 };
 
 
@@ -82,6 +84,34 @@ void tst_AutoReturn::autoReturn()
     QCOMPARE(QByteArray(m.typeName()), returnType);
     QCOMPARE(m.methodType(), methodType);
 }
+
+
+template<typename T>
+class AutoReturnTemplate : public QObject {
+    Q_OBJECT
+    static T foobar();
+signals:
+    auto mySignal(decltype(std::declval<T>() + 1) i) -> decltype(foobar() + 4);
+public slots:
+    auto mySlot1(decltype(std::declval<T>() + 1) i) -> decltype(i + 4) { return i; }
+    auto mySlot2(decltype(std::declval<T>() + 1) i) { return i+54; }
+};
+
+void tst_AutoReturn::autoReturnTemplate()
+{
+    {
+        AutoReturnTemplate<int> a;
+        QVERIFY(connect(&a, & AutoReturnTemplate<int>::mySignal, [] (int x){ return x+34; }));
+        QCOMPARE(a.mySignal(3) , (3+34));
+    }
+    {
+        AutoReturnTemplate<double> a;
+        QVERIFY(connect(&a, &AutoReturnTemplate<double>::mySignal, [] (double x){ return x+34; }));
+        QCOMPARE(a.mySignal(7) , (7.+34));
+    }
+}
+
+
 
 QTEST_MAIN(tst_AutoReturn)
 

@@ -797,10 +797,19 @@ void Generator::GenerateStaticMetaCall()
             if (WorkaroundTests(ClassName, MD, OS))
                 return;
 
+            auto ReturnType = getResultType(MD);
             // Original moc don't support reference as return type: see  Moc::parseFunction
-            bool IsVoid = getResultType(MD)->isVoidType() || getResultType(MD)->isReferenceType();
-            if (!IsVoid)
-                OS << "{ " << getResultType(MD).getUnqualifiedType().getAsString(PrintPolicy) << " _r =  ";
+            bool IsVoid = ReturnType->isVoidType() || ReturnType->isReferenceType();
+            // If we have a decltype, we need to use auto type deduction
+            bool AutoType = llvm::isa<clang::DecltypeType>(ReturnType) || llvm::isa<clang::AutoType>(ReturnType);
+            if (!IsVoid) {
+                OS << "{ ";
+                if (AutoType)
+                    OS << "auto";
+                else
+                    ReturnType.getUnqualifiedType().print(OS, PrintPolicy);
+                OS << " _r =  ";
+            }
 
             OS << "_t->" << MD->getName() << "(";
 
@@ -813,9 +822,12 @@ void Generator::GenerateStaticMetaCall()
             }
             OS << ");";
             if (!IsVoid) {
-                OS << "\n            if (_a[0]) *reinterpret_cast< "
-                   << Ctx.getPointerType(getResultType(MD).getNonReferenceType().getUnqualifiedType()).getAsString(PrintPolicy)
-                   << " >(_a[0]) = _r; }";
+                OS << "\n            if (_a[0]) *reinterpret_cast< ";
+                if (AutoType)
+                    OS << "decltype(&_r)";
+                else
+                    Ctx.getPointerType(ReturnType.getNonReferenceType().getUnqualifiedType()).print(OS, PrintPolicy);
+                OS << " >(_a[0]) = _r; }";
             }
             OS <<  " break;\n";
         };
@@ -1046,9 +1058,16 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
         return;
 
     clang::QualType ReturnType = getResultType(MD);
+    // getResultType will desugar.  So if we are still a decltype, it probably means this is type
+    // dependant and therefore must be a literal decltype which we need to have in the proper scope
+    bool TrailingReturn = llvm::isa<clang::DecltypeType>(ReturnType);
 
-    OS << "\n// SIGNAL " << Idx << "\n" << TemplatePrefix
-       << ReturnType.getAsString(PrintPolicy) << " " << QualName << "::" << MD->getName() + "(";
+    OS << "\n// SIGNAL " << Idx << "\n" << TemplatePrefix;
+    if (TrailingReturn)
+        OS << "auto ";
+    else
+        OS << ReturnType.getAsString(PrintPolicy) << " ";
+    OS << QualName << "::" << MD->getName() + "(";
     for (uint j = 0 ; j < MD->getNumParams(); ++j) {
         if (j) OS << ",";
         OS << MD->getParamDecl(j)->getType().getAsString(PrintPolicy);
@@ -1061,6 +1080,8 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
         OS << " const";
         This = "const_cast< " + CDef->Record->getNameAsString()  + " *>(this)";
     }
+    if (TrailingReturn)
+        OS << " -> " << ReturnType.getAsString(PrintPolicy);
     OS << "\n{\n";
     bool IsVoid = ReturnType->isVoidType();
     unsigned int NumParam = MD->getNumParams();
