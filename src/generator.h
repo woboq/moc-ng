@@ -102,6 +102,7 @@ class Generator {
 
     std::string QualName;
     std::string BaseName;
+    std::string TemplatePrefix; // what is in front of the template declaration ("template<typename t>")
     bool BaseHasStaticMetaObject = false;
     int MethodCount;
 

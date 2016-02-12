@@ -23,6 +23,7 @@
 #include <string>
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/ASTContext.h>
+#include <clang/AST/DeclTemplate.h>
 #include <clang/Sema/Sema.h>
 
 #include <iostream>
@@ -261,6 +262,59 @@ static bool hasStaticMetaObject(clang::QualType T) {
     return false;
 }
 
+template <typename T>
+static void PrintTemplateParamName(llvm::raw_ostream &Out, const T *D, bool PrintPack = false)
+{
+    if (auto II = D->getIdentifier()) {
+        Out << II->getName();
+    } else {
+        Out << "T_" << D->getDepth() << "_" << D->getIndex();
+    }
+    if (PrintPack && D->isParameterPack()) {
+        Out << "...";
+    }
+}
+
+static void PrintTemplateParameters(llvm::raw_ostream &Out, clang::TemplateParameterList *List,
+                                    clang::PrintingPolicy &PrintPolicy)
+{
+    Out << "template <";
+    bool NeedComa = false;
+    for (clang::NamedDecl *Param : *List) {
+        if (NeedComa) Out << ", ";
+        NeedComa = true;
+        if (const auto *TTP = llvm::dyn_cast<clang::TemplateTypeParmDecl>(Param)) {
+            if (TTP->wasDeclaredWithTypename()) {
+                Out << "typename ";
+            } else {
+                Out << "class ";
+            }
+            if (TTP->isParameterPack())
+                Out << "...";
+            PrintTemplateParamName(Out, TTP);
+        } else if (const auto *NTTP = llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(Param)) {
+            auto Type = NTTP->getType();
+            bool Pack = NTTP->isParameterPack();
+            if (auto *PET = Type->getAs<clang::PackExpansionType>()) {
+                Pack = true;
+                Type = PET->getPattern();
+            }
+            llvm::SmallString<25> Name;
+            {
+                llvm::raw_svector_ostream OS (Name);
+                PrintTemplateParamName(OS, NTTP);
+            }
+            Type.print(Out, PrintPolicy, (Pack ? "... " : "") + Name);
+        } else if (const auto *TTPD = llvm::dyn_cast<clang::TemplateTemplateParmDecl>(Param)) {
+            PrintTemplateParameters(Out, TTPD->getTemplateParameters(), PrintPolicy);
+            Out << "class ";
+            if (TTPD->isParameterPack())
+                Out << "... ";
+            PrintTemplateParamName(Out, TTPD);
+        }
+    }
+    Out << "> ";
+}
 
 Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTContext& Ctx, MocNg* Moc) :
     CDef(CDef), OS(OS), Ctx(Ctx), PrintPolicy(Ctx.getPrintingPolicy()), Moc(Moc)
@@ -269,7 +323,10 @@ Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTCont
     PrintPolicy.SuppressUnwrittenScope = true;
     PrintPolicy.AnonymousTagLocations = false;
 
-    QualName = clang::QualType(CDef->Record->getTypeForDecl(), 0).getAsString(PrintPolicy);
+    {
+        llvm::raw_string_ostream QualNameS(QualName);
+        CDef->Record->printQualifiedName(QualNameS, PrintPolicy);
+    }
 
     if (CDef->Record->getNumBases()) {
         auto Base = CDef->Record->bases_begin()->getType();
@@ -278,13 +335,37 @@ Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTCont
     }
 
     MethodCount = CountMethod(CDef->Signals) + CountMethod(CDef->Slots) + CountMethod(CDef->Methods) + CDef->PrivateSlotCount;
+
+    if (auto Tpl = CDef->Record->getDescribedClassTemplate()) {
+        llvm::raw_string_ostream TemplatePrefixStream(TemplatePrefix);
+        PrintTemplateParameters(TemplatePrefixStream, Tpl->getTemplateParameters(), PrintPolicy);
+        llvm::raw_string_ostream TemplatePostfixStream(QualName);
+        bool NeedComa = false;
+        TemplatePostfixStream << "<";
+        for (clang::NamedDecl *Param : *Tpl->getTemplateParameters()) {
+            if (NeedComa) TemplatePostfixStream << ", ";
+            NeedComa = true;
+            if (const auto *TTP = llvm::dyn_cast<clang::TemplateTypeParmDecl>(Param)) {
+                PrintTemplateParamName(TemplatePostfixStream, TTP, true);
+            } else if (const auto *NTTP = llvm::dyn_cast<clang::NonTypeTemplateParmDecl>(Param)) {
+                PrintTemplateParamName(TemplatePostfixStream, NTTP, true);
+            } else if (const auto *TTPD = llvm::dyn_cast<clang::TemplateTemplateParmDecl>(Param)) {
+                PrintTemplateParamName(TemplatePostfixStream, TTPD, true);
+            }
+        }
+        TemplatePostfixStream << ">";
+    }
 }
 
 void Generator::GenerateCode()
 {
-
     // Build the data array
+
     std::string QualifiedClassNameIdentifier = QualName;
+    if (CDef->Record->getDescribedClassTemplate()) {
+        auto pos = QualifiedClassNameIdentifier.find('<');
+        QualifiedClassNameIdentifier.resize(std::min(QualifiedClassNameIdentifier.size(), pos));
+    }
     std::replace(QualifiedClassNameIdentifier.begin(), QualifiedClassNameIdentifier.end(), ':', '_');
 
     int Index = MetaObjectPrivateFieldCount;
@@ -508,7 +589,7 @@ void Generator::GenerateCode()
         return;
     }
 
-    OS << "\nconst QMetaObject " << QualName << "::staticMetaObject = {\n"
+    OS << "\n" << TemplatePrefix << "const QMetaObject " << QualName << "::staticMetaObject = {\n"
           "    { ";
     if (BaseName.empty() || (CDef->HasQGadget && !BaseHasStaticMetaObject)) OS << "0";
     else OS << "&" << BaseName << "::staticMetaObject";
@@ -525,11 +606,11 @@ void Generator::GenerateCode()
     OS << "0}\n};\n";
 
     if (CDef->HasQObject) {
-        OS << "const QMetaObject *" << QualName << "::metaObject() const\n{\n"
+        OS << TemplatePrefix << "const QMetaObject *" << QualName << "::metaObject() const\n{\n"
               "    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;\n}\n";
 
 
-        OS << "void *" << QualName << "::qt_metacast(const char *_clname)\n{\n"
+        OS <<  TemplatePrefix << "void *" << QualName << "::qt_metacast(const char *_clname)\n{\n"
               "    if (!_clname) return 0;\n"
               "    if (!strcmp(_clname, qt_meta_stringdata_" << QualifiedClassNameIdentifier << ".stringdata))\n"
               "        return static_cast<void*>(this);\n";
@@ -579,7 +660,7 @@ void Generator::GenerateCode()
 
 void Generator::GenerateMetaCall()
 {
-    OS << "\nint " << QualName << "::qt_metacall(QMetaObject::Call _c, int _id, void **_a)\n{\n";
+    OS << "\n" << TemplatePrefix << "int " << QualName << "::qt_metacall(QMetaObject::Call _c, int _id, void **_a)\n{\n";
     if (!BaseName.empty()) {
         OS << "    _id = " << BaseName << "::qt_metacall(_c, _id, _a);\n"
               "    if (_id < 0)\n"
@@ -656,7 +737,7 @@ void Generator::GenerateMetaCall()
 void Generator::GenerateStaticMetaCall()
 {
     llvm::StringRef ClassName = CDef->Record->getName();
-    OS << "\nvoid " << QualName << "::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)\n{\n    ";
+    OS << "\n" <<  TemplatePrefix << "void " << QualName << "::qt_static_metacall(QObject *_o, QMetaObject::Call _c, int _id, void **_a)\n{\n    ";
     bool NeedElse = false;
 
     if (!CDef->Constructors.empty()) {
@@ -956,7 +1037,7 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
     if (MD->isPure())
         return;
 
-    OS << "\n// SIGNAL " << Idx << "\n"
+    OS << "\n// SIGNAL " << Idx << "\n" << TemplatePrefix
        << getResultType(MD).getAsString(PrintPolicy) << " " << QualName << "::" << MD->getName() + "(";
     for (uint j = 0 ; j < MD->getNumParams(); ++j) {
         if (j) OS << ",";

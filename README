@@ -28,6 +28,16 @@ USE:
  * As a clang plugin: Tell your build system not to run moc, and add this to the CXXFLAGS
     -Xclang -load  -Xclang /path/to/src/libmocng_plugin.so -Xclang -add-plugin -Xclang moc
 
+DIFFERENCES WITH UPSTREAM moc:
+
+This version of moc has nice additional support compared to upstream moc:
+
+ * Template support
+ * Automatically register all types using qRegisterMetaType
+
+Not supported:
+ * OSX Framework options (-F)
+
 PROBLEMS?
 
 Make sure that the Qt include paths (and other include paths) are correctly passed to moc via the -I option
@@ -39,5 +49,7 @@ TESTS:
 Replace the moc binary in the builddir (qtbase/bin/moc)  and run the Qt tests.
 Expecially the tst_moc and the tests for corelib/kernel.
 The tests that are known to fail are worked arounded in "workaroundtests.cpp".
+Tests for features not supported by normal Qt (such as templates) are found in
+the tests subdirectory.
 
 

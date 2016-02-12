@@ -22,8 +22,13 @@
 class tst_Templates : public QObject
 { Q_OBJECT
 private slots:
+    // from https://codereview.qt-project.org/49864/
     void templatesMethod_data();
     void templatesMethod();
+
+    // from https://codereview.qt-project.org/49866/
+    void connectTemplate();
+
 };
 
 struct MyStruct {};
@@ -66,7 +71,7 @@ signals:
     void hello();
 };
 
-template<typename, typename, typename> struct ReduceKernel;
+template<typename, typename, typename> struct ReduceKernel {};
 struct Functor { typedef int result_type; };
 
 template <typename ReducedResultType,
@@ -146,4 +151,47 @@ void tst_Templates::templatesMethod()
     QCOMPARE(index != -1, exist);
 }
 
-#include "tst_moc_templates.moc"
+
+template <typename T> class TemplateObject : public QObject  {
+    Q_OBJECT
+signals:
+    void signalTemplate(const T &t);
+    void signalString(const QString & str);
+public slots:
+    void slotTemplate(const T &t) { result = QVariant::fromValue<T>(t); count++; }
+    void slotVariant(const QVariant &t) { result = t; count += 100; }
+
+public:
+    TemplateObject() : count(0) { }
+    int count;
+    QVariant result;
+};
+void tst_Templates::connectTemplate()
+{
+    TemplateObject<int> oi;
+    TemplateObject<QString> os;
+
+    QVERIFY(QObject::connect(&oi, &TemplateObject<int>::signalTemplate, &os, &TemplateObject<QString>::slotVariant));
+    oi.signalTemplate(25);
+    QCOMPARE(os.count, 100);
+    QCOMPARE(os.result, QVariant(25));
+    os.count = 0;
+
+    QVERIFY(QObject::connect(&oi, &TemplateObject<int>::signalString, &os, &TemplateObject<QString>::slotTemplate));
+    oi.signalString("hello");
+    QCOMPARE(os.count, 1);
+    QCOMPARE(os.result, QVariant("hello"));
+    os.count = 0;
+
+    QVERIFY(QObject::connect(&os, &TemplateObject<QString>::signalTemplate, &oi, &TemplateObject<int>::slotVariant));
+    os.signalTemplate("world");
+    QCOMPARE(oi.count, 100);
+    QCOMPARE(oi.result, QVariant("world"));
+}
+
+
+QTEST_MAIN(tst_Templates)
+
+#include "tst_templates.moc"
+
+
