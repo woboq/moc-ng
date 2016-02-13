@@ -48,6 +48,11 @@ void MocASTConsumer::HandleTagDeclDefinition(clang::TagDecl* D)
         Moc.registered_meta_type.insert(TD->getTemplateArgs().get(0).getAsType()->getCanonicalTypeUnqualified().getTypePtr());
     }
 
+    if (TD) {
+        // Do not parse class for class template specialization
+        return;
+    }
+
 
     /*if (!(PPCallbacks->seenQ_OBJECT.isValid() &&
             ctx->getSourceManager().isBeforeInTranslationUnit(D->getSourceRange().getBegin(),

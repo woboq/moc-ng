@@ -31,7 +31,7 @@ private slots:
 
 struct AutoReturnClass  :public QObject
 { Q_OBJECT
-    static AutoReturnClass* someFunc();
+    static AutoReturnClass* someFunc() { return nullptr; }
 public:
     struct LocalClass {};
 public slots:
@@ -89,7 +89,7 @@ void tst_AutoReturn::autoReturn()
 template<typename T>
 class AutoReturnTemplate : public QObject {
     Q_OBJECT
-    static T foobar();
+    static T foobar() { return 0; }
 signals:
     auto mySignal(decltype(std::declval<T>() + 1) i) -> decltype(foobar() + 4);
 public slots:
