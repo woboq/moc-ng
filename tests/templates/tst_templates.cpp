@@ -32,6 +32,7 @@ private slots:
     // from https://codereview.qt-project.org/49865
     void variadicTemplates();
 
+    void gadget();
 };
 
 struct MyStruct {};
@@ -216,6 +217,38 @@ void tst_Templates::variadicTemplates()
     VariadicTemplate4<1, 2, 3> d;
 }
 
+template<typename T> class TemplateGadget {
+    Q_GADGET
+public:
+    T data;
+    Q_INVOKABLE QVariant readData() { return QVariant::fromValue(data); }
+    Q_INVOKABLE void writeData(const QVariant &d) { data = qvariant_cast<T>(d); }
+    Q_PROPERTY(QVariant data READ readData WRITE writeData)
+};
+
+template<typename T> void testGadget(const T &val1)
+{
+    TemplateGadget<T> xx;
+    const QMetaObject *mo = &xx.staticMetaObject;
+    auto id = mo->indexOfProperty("data");
+    QVERIFY(id >= 0);
+    auto prop = mo->property(id);
+    prop.writeOnGadget(&xx, QVariant::fromValue(val1));
+    QCOMPARE(xx.data, val1);
+    id = mo->indexOfMethod("readData()");
+    QVERIFY(id >= 0);
+    auto meth = mo->method(id);
+    QVariant v;
+    meth.invokeOnGadget(&xx, Q_RETURN_ARG(QVariant, v));
+    QCOMPARE(v.value<T>(), val1);
+}
+
+void tst_Templates::gadget()
+{
+    testGadget(34);
+    testGadget(QString("hello"));
+    testGadget(QByteArray("toto"));
+}
 
 QTEST_MAIN(tst_Templates)
 

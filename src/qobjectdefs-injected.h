@@ -110,7 +110,10 @@ static const char Injected[] = R"-(
 #define Q_GADGET \
 public: \
     static const QMetaObject staticMetaObject; \
+    void qt_check_for_QGADGET_macro(); \
+    typedef void QtGadgetHelper; \
 private: \
+    Q_DECL_HIDDEN_STATIC_METACALL static void qt_static_metacall(QObject *, QMetaObject::Call, int, void **); \
     QT_ANNOTATE_CLASS(qt_qgadget, "")
 
 //for qnamespace.h because Q_MOC_RUN is defined
