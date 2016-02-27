@@ -42,6 +42,25 @@ template <typename T> static auto getResultType(T *decl) -> decltype(decl->getRe
 template <typename T> static auto getResultType(T *decl) -> decltype(decl->getReturnType())
 { return getDesugarType(decl->getReturnType()); }
 
+/**
+ * Return the type as writen in the file at the given SourceRange.
+ * May return an empty string if the type was expended from macros.
+ */
+static std::string TypeStringFromSourceRange(clang::SourceRange Range, const clang::SourceManager &SM)
+{
+    if (Range.isInvalid() || !Range.getBegin().isFileID())
+        return {};
+    clang::FileID FID = SM.getFileID(Range.getBegin());
+    if (FID != SM.getFileID(Range.getEnd()))
+        return {};
+    const llvm::MemoryBuffer *Buffer = SM.getBuffer(FID);
+    const char *Buf = Buffer->getBufferStart();
+    auto B = SM.getFileOffset(Range.getBegin());
+    auto E = SM.getFileOffset(Range.getEnd());
+    while (std::isalnum(Buf[E]) || Buf[E] == '\\' || Buf[E] == '_') E++;
+    return std::string(Buf+B, Buf+E);
+}
+
 // Returns true if the last argument of this mehod is a 'QPrivateSignal'
 static bool HasPrivateSignal(const clang::CXXMethodDecl *MD) {
     if (MD && MD->getNumParams()) {
@@ -337,9 +356,17 @@ Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTCont
     }
 
     if (CDef->Record->getNumBases()) {
-        auto Base = CDef->Record->bases_begin()->getType();
-        BaseName = Base.getAsString(PrintPolicy);
-        BaseHasStaticMetaObject = hasStaticMetaObject(Base);
+        auto Base = CDef->Record->bases_begin()->getTypeSourceInfo();
+        // We need to try to get the type name as written. Because we don't want qualified name if
+        // it was not qualified.  For example:
+        //   namespace X { struct F; namespace Y { struct X; struct G : F { Q_OBJECT };  } }
+        //   We don't want to use X::F  because X would be the struct and not the namespace
+        BaseName = TypeStringFromSourceRange(Base->getTypeLoc().getSourceRange(),
+                                             Ctx.getSourceManager());
+        if (BaseName.empty()) {
+            BaseName = Base->getType().getAsString(PrintPolicy);
+        }
+        BaseHasStaticMetaObject = hasStaticMetaObject(Base->getType());
     }
 
     MethodCount = CountMethod(CDef->Signals) + CountMethod(CDef->Slots) + CountMethod(CDef->Methods) + CDef->PrivateSlotCount;
