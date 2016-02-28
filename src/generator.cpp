@@ -57,7 +57,11 @@ static std::string TypeStringFromSourceRange(clang::SourceRange Range, const cla
     const char *Buf = Buffer->getBufferStart();
     auto B = SM.getFileOffset(Range.getBegin());
     auto E = SM.getFileOffset(Range.getEnd());
-    while (std::isalnum(Buf[E]) || Buf[E] == '\\' || Buf[E] == '_') E++;
+    if (Buf[E] == '>') { // a type can be terminated be either a '>' or an identifier
+        E++;
+    } else {
+        while (std::isalnum(Buf[E]) || Buf[E] == '\\' || Buf[E] == '_') E++;
+    }
     return std::string(Buf+B, Buf+E);
 }
 
