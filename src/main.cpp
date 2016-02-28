@@ -45,8 +45,21 @@ struct MocOptions {
   bool NoInclude = false;
   std::vector<std::string> Includes;
   std::string Output;
+  std::string OutputTemplateHeader;
   std::vector<std::pair<llvm::StringRef, llvm::StringRef>> MetaData;
+  void addOutput(llvm::StringRef);
 } Options;
+
+void MocOptions::addOutput(StringRef Out)
+{
+    if (Output.empty()) {
+        Output = Out.str();
+    } else if (OutputTemplateHeader.empty()) {
+        OutputTemplateHeader = Out.str();
+    } else {
+        std::cerr << "moc-ng: Too many output file specified" << std::endl;
+    }
+}
 
 
 /* Proxy that changes some errors into warnings  */
@@ -150,12 +163,15 @@ struct MocNGASTConsumer : public MocASTConsumer {
         if (!OS) return;
         llvm::raw_ostream &Out = *OS;
 
-        Out <<  "/****************************************************************************\n"
-                "** Meta object code from reading C++ file '" << InFile << "'\n"
-                "**\n"
-                "** Created by MOC-NG version " MOCNG_VERSION_STR " by Woboq [https://woboq.com]\n"
-                "** WARNING! All changes made in this file will be lost!\n"
-                "*****************************************************************************/\n\n";
+        auto WriteHeader = [&](llvm::raw_ostream & Out) {
+            Out <<  "/****************************************************************************\n"
+                    "** Meta object code from reading C++ file '" << InFile << "'\n"
+                    "**\n"
+                    "** Created by MOC-NG version " MOCNG_VERSION_STR " by Woboq [https://woboq.com]\n"
+                    "** WARNING! All changes made in this file will be lost!\n"
+                    "*****************************************************************************/\n\n";
+        };
+        WriteHeader(Out);
 
         if (!Options.NoInclude) {
           for (auto &s : Options.Includes) {
@@ -181,9 +197,19 @@ struct MocNGASTConsumer : public MocASTConsumer {
                "#endif\n\n"
                "QT_BEGIN_MOC_NAMESPACE\n";
 
+        llvm::raw_ostream *OS_TemplateHeader = nullptr;
+        if (!Options.OutputTemplateHeader.empty()) {
+            OS_TemplateHeader =
+                ci.createOutputFile(Options.OutputTemplateHeader, false, true, "", "", false, false);
+            if (!OS_TemplateHeader)
+                return;
+            WriteHeader(*OS_TemplateHeader);
+            (*OS_TemplateHeader) << "QT_BEGIN_MOC_NAMESPACE\n";
+        }
 
         for (const ClassDef &Def : objects ) {
-          Generator G(&Def, Out, Ctx, &Moc);
+          Generator G(&Def, Out, Ctx, &Moc,
+                      Def.Record->getDescribedClassTemplate() ? OS_TemplateHeader : nullptr);
           G.MetaData = Options.MetaData;
           if (llvm::StringRef(InFile).endswith("global/qnamespace.h"))
               G.IsQtNamespace = true;
@@ -191,6 +217,9 @@ struct MocNGASTConsumer : public MocASTConsumer {
         };
 
         Out << "QT_END_MOC_NAMESPACE\n";
+        if (OS_TemplateHeader) {
+            (*OS_TemplateHeader) << "QT_END_MOC_NAMESPACE\n";
+        }
     }
 };
 
@@ -278,7 +307,6 @@ int main(int argc, const char **argv)
   Argv.push_back("-Wno-microsoft"); // get rid of a warning in qtextdocument.h
   Argv.push_back("-std=c++11");
 
-  Options.Output = "-";
   bool NextArgNotInput = false;
   bool HasInput = false;
 
@@ -294,8 +322,8 @@ int main(int argc, const char **argv)
                 showVersion(true);
                 return EXIT_SUCCESS;
             case 'o':
-                if (argv[I][2]) Options.Output = &argv[I][2];
-                else if ((++I) < argc) Options.Output = argv[I];
+                if (argv[I][2]) Options.addOutput(&argv[I][2]);
+                else if ((++I) < argc) Options.addOutput(argv[I]);
                 continue;
             case 'i':
                 if (argv[I] == llvm::StringRef("-i")) {
@@ -349,6 +377,10 @@ invalidArg:
     }
     Argv.push_back(argv[I]);
   }
+
+  if (Options.Output.empty())
+    Options.Output = "-";
+
 
   //FIXME
   Argv.push_back("-I/usr/include/qt5");

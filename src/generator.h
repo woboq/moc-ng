@@ -97,6 +97,7 @@ enum { OutputRevision = 7,
 class Generator {
     const ClassDef *CDef;
     llvm::raw_ostream& OS;
+    llvm::raw_ostream& OS_TemplateHeader;
 
     std::vector<std::string> Strings;
 
@@ -104,6 +105,7 @@ class Generator {
     std::string BaseName;
     std::string TemplatePrefix; // what is in front of the template declaration ("template<typename t>")
     bool BaseHasStaticMetaObject = false;
+    bool HasTemplateHeader;
     int MethodCount;
 
     clang::ASTContext &Ctx;
@@ -112,7 +114,8 @@ class Generator {
     MocNg *Moc;
 
 public:
-    Generator(const ClassDef *CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, MocNg *Moc);
+    Generator(const ClassDef *CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, MocNg *Moc,
+              llvm::raw_ostream *OS_TemplateHeader = nullptr);
 
     bool IsQtNamespace = false;
 
