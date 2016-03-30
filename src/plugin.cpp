@@ -22,18 +22,16 @@
 #include <clang/AST/ASTContext.h>
 #include <clang/AST/Attr.h>
 
-
 #include "mocastconsumer.h"
 #include "mocppcallbacks.h"
 #include "generator.h"
 
-
-static bool IsQtVirtual(const clang::CXXMethodDecl *MD) {
+static bool IsQtInternal(const clang::CXXMethodDecl *MD) {
   if (!MD->getIdentifier())
     return false;
   auto Name = MD->getName();
-  return (Name == "qt_metacall" || Name == "qt_metacast" || Name == "metaObject"
-  || Name == "qt_static_metacall");
+  // qt_metacall, qt_metacast, qt_static_metacall, qt_check_for_QGADGET_macro
+  return (Name.startswith("qt_") || Name == "metaObject");
 }
 
 
@@ -120,9 +118,7 @@ class MocPluginASTConsumer : public MocASTConsumer {
       std::string Code;
       llvm::raw_string_ostream OS(Code);
 
-
       for (const ClassDef &Def : objects ) {
-
           auto RD = Def.Record;
 
           // find a key function: first non inline virtual method
@@ -131,7 +127,7 @@ class MocPluginASTConsumer : public MocASTConsumer {
 #else
           const clang::CXXMethodDecl *Key = ctx->getKeyFunction(RD);
 #endif
-          if (Key &&  IsQtVirtual(Key))
+          if (Key &&  IsQtInternal(Key))
               Key = nullptr;
 
           if (!Key) {
@@ -148,7 +144,7 @@ class MocPluginASTConsumer : public MocASTConsumer {
                   if (it->hasBody(Def) && Def->isInlineSpecified())
                       continue;
 
-                  if (IsQtVirtual(*it))
+                  if (IsQtInternal(*it))
                       continue;
 
                   /* if (Key->isFunctionTemplateSpecialization())
@@ -166,7 +162,6 @@ class MocPluginASTConsumer : public MocASTConsumer {
                       break;
               }
           }
-
           if (Key && !Key->hasBody())
               continue;
 
@@ -174,15 +169,11 @@ class MocPluginASTConsumer : public MocASTConsumer {
           G.GenerateCode();
       }
       return Code;
-
     }
 
 public:
     MocPluginASTConsumer(clang::CompilerInstance& ci) : MocASTConsumer(ci) {}
 };
-
-
-
 
 class MocPluginAction : public clang::PluginASTAction {
 protected:
