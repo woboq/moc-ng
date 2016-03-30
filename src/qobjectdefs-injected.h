@@ -17,9 +17,15 @@
  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
  */
 
-
 static const char Injected[] = R"-(
 #if defined(Q_MOC_OUTPUT_REVISION) || defined(Q_MOC_RUN)
+
+#ifdef QT_ANNOTATE_CLASS
+#undef QT_ANNOTATE_CLASS
+#endif
+#ifdef QT_ANNOTATE_CLASS2
+#undef QT_ANNOTATE_CLASS2
+#endif
 
 #ifdef Q_COMPILER_VARIADIC_MACROS
 #define QT_ANNOTATE_CLASS(type, ...) \

@@ -399,7 +399,6 @@ invalidArg:
       return !Inv.run();
   }
 
-
   Argv.push_back("-fsyntax-only");
 
   clang::tooling::ToolInvocation Inv(Argv, new MocAction, &FM);

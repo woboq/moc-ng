@@ -24,16 +24,31 @@
 #include <clang/AST/DeclCXX.h>
 #include <clang/AST/DeclTemplate.h>
 #include <clang/Sema/Sema.h>
+#include <clang/Basic/MacroBuilder.h>
 
-
-
-#include <iostream>
 
 void MocASTConsumer::Initialize(clang::ASTContext& Ctx) {
     ctx = &Ctx;
     PPCallbacks = new MocPPCallbacks(ci.getPreprocessor(), Moc.Tags);
     ci.getPreprocessor().addPPCallbacks(maybe_unique(PPCallbacks));
 //   ci.getDiagnostics().setClient(new DiagnosticClient(), true);
+
+    // We will enable this when we require Qt >= 5.6.1 and libclang >= 3.8
+    // Then we will be able to get rid of qobjectdefs-injected
+#if 0
+    std::string qtPredefinesBuffer;
+    llvm::raw_string_ostream qtPredefines(qtPredefinesBuffer);
+    clang::MacroBuilder builder(qtPredefines);
+    builder.append("# 1 \"<moc-ng built-in>\" 1");
+    builder.defineMacro("QT_ANNOTATE_CLASS(type,...)", "static_assert(sizeof(#__VA_ARGS__),#type);");
+    builder.defineMacro("QT_ANNOTATE_CLASS2(type,a1,a2)", "static_assert(sizeof(#a1,#a2),#type);");
+    builder.defineMacro("QT_ANNOTATE_FUNCTION(a)", "__attribute__((annotate(#a)))");
+    builder.defineMacro("QT_ANNOTATE_ACCESS_SPECIFIER(a)", "__attribute__((annotate(#a)))");
+    builder.defineMacro("Q_CLASSINFO(name,value)", "static_assert(sizeof(name,value),\"qt_classinfo\");");
+    builder.defineMacro("Q_REVISION(v)", "__attribute__((annotate(\"qt_revision:\" QT_STRINGIFY2(v))))");
+    // prepend the Qt defines so the command line argument can override them.
+    ci.getPreprocessor().setPredefines(qtPredefines.str() + ci.getPreprocessor().getPredefines());
+#endif
 }
 
 
@@ -70,4 +85,3 @@ void MocASTConsumer::HandleTagDeclDefinition(clang::TagDecl* D)
         ci.getPreprocessor().enableIncrementalProcessing();
     }
 }
-

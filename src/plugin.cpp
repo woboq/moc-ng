@@ -34,10 +34,8 @@ static bool IsQtInternal(const clang::CXXMethodDecl *MD) {
   return (Name.startswith("qt_") || Name == "metaObject");
 }
 
-
 class MocPluginASTConsumer : public MocASTConsumer {
     bool done = false;
-
 
     bool HandleTopLevelDecl(clang::DeclGroupRef D) override {
       auto &PP = ci.getPreprocessor();
@@ -110,8 +108,6 @@ class MocPluginASTConsumer : public MocASTConsumer {
       }
       return true;
     }
-
-
 
     std::string generate()
     {
