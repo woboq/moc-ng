@@ -38,7 +38,7 @@ bool Generator::WorkaroundTests(llvm::StringRef ClassName, const clang::CXXMetho
             // The wording of the warnings is not the same with moc-ng (it is better)
             .Cases("warnings", "warnOnExtraSignalSlotQualifiaction", "warnOnMultipleInheritance", true)
             .Cases("forgottenQInterface", "defineMacroViaCmdline", "warnOnPropertyWithoutREAD", true)
-            .Cases("warnOnVirtualSignal", "notifyError", "", true)
+            .Cases("warnOnVirtualSignal", "notifyError", "optionsFileError", true)
 
             // Small difference in the handling of the options
             .Case("ignoreOptionClashes", true)
