@@ -50,7 +50,7 @@ struct MocOptions {
   void addOutput(llvm::StringRef);
 } Options;
 
-void MocOptions::addOutput(StringRef Out)
+void MocOptions::addOutput(llvm::StringRef Out)
 {
     if (Output.empty()) {
         Output = Out.str();
