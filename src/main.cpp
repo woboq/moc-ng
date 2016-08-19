@@ -158,7 +158,8 @@ struct MocNGASTConsumer : public MocASTConsumer {
           return;
         }
 
-        llvm::raw_ostream *OS = ci.createOutputFile(Options.Output, false, true, "", "", false, false);
+        // createOutputFile returns a raw_pwrite_stream* before Clang 3.9, and a std::unique_ptr<raw_pwrite_stream> after
+        auto OS = ci.createOutputFile(Options.Output, false, true, "", "", false, false);
 
         if (!OS) return;
         llvm::raw_ostream &Out = *OS;
@@ -197,7 +198,7 @@ struct MocNGASTConsumer : public MocASTConsumer {
                "#endif\n\n"
                "QT_BEGIN_MOC_NAMESPACE\n";
 
-        llvm::raw_ostream *OS_TemplateHeader = nullptr;
+        decltype(OS) OS_TemplateHeader = nullptr;
         if (!Options.OutputTemplateHeader.empty()) {
             OS_TemplateHeader =
                 ci.createOutputFile(Options.OutputTemplateHeader, false, true, "", "", false, false);
@@ -209,7 +210,7 @@ struct MocNGASTConsumer : public MocASTConsumer {
 
         for (const ClassDef &Def : objects ) {
           Generator G(&Def, Out, Ctx, &Moc,
-                      Def.Record->getDescribedClassTemplate() ? OS_TemplateHeader : nullptr);
+                      Def.Record->getDescribedClassTemplate() ? &*OS_TemplateHeader : nullptr);
           G.MetaData = Options.MetaData;
           if (llvm::StringRef(InFile).endswith("global/qnamespace.h"))
               G.IsQtNamespace = true;

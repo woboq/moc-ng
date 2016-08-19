@@ -223,10 +223,19 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
         if (Tok.is(clang::tok::identifier)) {
 
             if (Next.is(clang::tok::coloncolon)) {
+                auto TokLoc = GetFromLiteral(Tok, Val, PP);
+                auto NextLoc = GetFromLiteral(Next, Val, PP);
+#if CLANG_VERSION_MAJOR >= 4
+                clang::Sema::NestedNameSpecInfo NameInfo(II, TokLoc, NextLoc);
+                if (Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(Def.Record),
+                        NameInfo, false, SS))
+#else
                 if (Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(Def.Record), *II,
-                        GetFromLiteral(Tok, Val, PP), GetFromLiteral(Next, Val, PP), {}, false, SS))
-                    SS.SetInvalid({GetFromLiteral(Tok, Val, PP), GetFromLiteral(Next, Val, PP)});
-
+                        TokLoc, NextLoc, {}, false, SS))
+#endif
+                {
+                    SS.SetInvalid({TokLoc, NextLoc});
+                }
                 Lex.LexFromRawLexer(Next);
                 continue;
             }

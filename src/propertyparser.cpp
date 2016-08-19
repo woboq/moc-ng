@@ -267,9 +267,18 @@ std::string PropertyParser::parseType(bool SupressDiagnostics) {
                 break;
 
             if (NoTemplates && !SupressDiagnostics) {
+#if CLANG_VERSION_MAJOR >= 4
+                clang::Sema::NestedNameSpecInfo NameInfo(IdentTok.getIdentifierInfo(),
+                                                         OriginalLocation(IdentTok.getLocation()),
+                                                         OriginalLocation(CurrentTok.getLastLoc()));
+                if (Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(RD), NameInfo, false, SS))
+#else
                 if (Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(RD), *IdentTok.getIdentifierInfo(),
                     OriginalLocation(IdentTok.getLocation()), OriginalLocation(CurrentTok.getLastLoc()), {}, false, SS))
-                        SS.SetInvalid({OriginalLocation(IdentTok.getLocation()), OriginalLocation(CurrentTok.getLastLoc())});
+#endif
+                {
+                    SS.SetInvalid({OriginalLocation(IdentTok.getLocation()), OriginalLocation(CurrentTok.getLastLoc())});
+                }
             }
 
             Result += Spelling();
