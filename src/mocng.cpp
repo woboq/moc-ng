@@ -315,8 +315,8 @@ static std::pair<clang::StringLiteral*, clang::StringLiteral *> ExtractLiterals(
         if (!(Val1 = llvm::dyn_cast<clang::StringLiteral>(BO->getLHS())))
             PP.getDiagnostics().Report(BO->getLHS()->getExprLoc(),
                     PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error, Error));
-            if (!(Val2 = llvm::dyn_cast<clang::StringLiteral>(BO->getRHS())))
-                PP.getDiagnostics().Report(BO->getRHS()->getExprLoc(),
+        if (!(Val2 = llvm::dyn_cast<clang::StringLiteral>(BO->getRHS())))
+            PP.getDiagnostics().Report(BO->getRHS()->getExprLoc(),
                     PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error, Error));
     }
     return {Val1, Val2};
