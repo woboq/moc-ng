@@ -782,9 +782,8 @@ void Generator::GenerateMetaCall()
 
         HandleQueryPropertyAction(needDesignable, "QueryPropertyDesignable", &PropertyDef::designable);
         HandleQueryPropertyAction(needScriptable, "QueryPropertyScriptable", &PropertyDef::scriptable);
-        HandleQueryPropertyAction(needScriptable, "QueryPropertyStored", &PropertyDef::stored);
+        HandleQueryPropertyAction(needStored, "QueryPropertyStored", &PropertyDef::stored);
         HandleQueryPropertyAction(needEditable, "QueryPropertyEditable", &PropertyDef::editable);
-        HandleQueryPropertyAction(needUser, "QueryPropertyUser", &PropertyDef::user);
         HandleQueryPropertyAction(needUser, "QueryPropertyUser", &PropertyDef::user);
 
     }
