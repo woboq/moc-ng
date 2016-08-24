@@ -1251,7 +1251,12 @@ void Generator::GenerateEnums(int EnumIndex)
         int Count = 0;
         for (auto it = std::get<0>(e)->enumerator_begin() ; it != std::get<0>(e)->enumerator_end(); ++it)
             Count++;
-        OS << "    " << StrIdx(std::get<1>(e)) << ", " << std::get<2>(e) << ", " << Count << ", " << EnumIndex << ",\n";
+        unsigned flags = 0;
+        if(std::get<2>(e))
+            flags |= 0x1; // EnumIsFlag
+        if(std::get<0>(e)->isScoped())
+            flags |= 0x2; // EnumIsScoped
+        OS << "    " << StrIdx(std::get<1>(e)) << ", " << flags << ", " << Count << ", " << EnumIndex << ",\n";
         EnumIndex += Count*2;
     }
 
