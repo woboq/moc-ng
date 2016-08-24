@@ -306,6 +306,7 @@ int main(int argc, const char **argv)
   Argv.push_back("-fPIE");
   Argv.push_back("-fPIC");
   Argv.push_back("-Wno-microsoft"); // get rid of a warning in qtextdocument.h
+  Argv.push_back("-Wno-pragma-once-outside-header");
   Argv.push_back("-std=c++11");
 
   bool NextArgNotInput = false;

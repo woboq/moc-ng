@@ -52,6 +52,9 @@ bool Generator::WorkaroundTests(llvm::StringRef ClassName, const clang::CXXMetho
             // moc -E  to preprocess behave differently
             .Case("unterminatedFunctionMacro", true)
 
+            // MSVC compat mode for $INCLUDE environment variable not implemented
+            .Case("environmentIncludePaths", true)
+
             .Default(false);
     } else if(ClassName == "tst_QObject"){
         if (MethodName == "normalize") {
