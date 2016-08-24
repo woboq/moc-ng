@@ -39,3 +39,7 @@ template<typename T> struct MaybeUnique {
 };
 template<typename T> MaybeUnique<T> maybe_unique(T* val) { return {val}; }
 template<typename T> MaybeUnique<T> maybe_unique(std::unique_ptr<T> val) { return {val.release()}; }
+
+#ifndef LLVM_FALLTHROUGH
+#define LLVM_FALLTHROUGH
+#endif

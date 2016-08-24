@@ -279,9 +279,9 @@ static void showHelp() {
 //               "  -nw                do not display warnings\n"
 //               "  @<file>            read additional options from file\n"
               "  -v                 display version of moc-ng\n"
+              "  -include <file>    Adds an implicit #include into the predefines buffer which is read before the source file is preprocessed\n"
 
 /* undocumented options
-              "  -include <file>    Adds an implicit #include into the predefines buffer which is read before the source file is preprocessed\n"
               "  -W<warnings>       Enable the specified warning\n"
               "  -f<option>         clang option\n"
               "  -X<ext> <arg>      extensions arguments\n"
@@ -363,6 +363,26 @@ int main(int argc, const char **argv)
                 break;
             case 'n': //not implemented, silently ignored
                 continue;
+            case '-':
+                if (llvm::StringRef(argv[I]) == "--include" ||
+                        llvm::StringRef(argv[I]).startswith("--include=")) {
+                    llvm::StringRef File;
+                    if (llvm::StringRef(argv[I]).startswith("--include=")) {
+                        File = llvm::StringRef(argv[I]).substr(llvm::StringRef("--include=").size());
+                    } else if (I + 1 < argc) {
+                        File = llvm::StringRef(argv[++I]);
+                    }
+                    if (File.endswith("/moc_predefs.h")) {
+                        // qmake generates moc_predefs with compiler defined stuff.
+                        // We can't support it because everything is already pre-defined.
+                        // So skip it.
+                        continue;
+                    }
+                    Argv.push_back("-include");
+                    Argv.push_back(File);
+                    continue;
+                }
+                LLVM_FALLTHROUGH;
             default:
 invalidArg:
                 std::cerr << "moc-ng: Invalid argument '" << argv[I] << "'" << std::endl;
