@@ -382,6 +382,12 @@ int main(int argc, const char **argv)
                     Argv.push_back(File);
                     continue;
                 }
+                if (llvm::StringRef(argv[I]).startswith("--compiler-flavor")) {
+                    if (llvm::StringRef(argv[I]) == "--compiler-flavor")
+                        ++I;
+                    // MSVC flavor not yet implemented
+                    continue;
+                }
                 LLVM_FALLTHROUGH;
             default:
 invalidArg:
