@@ -521,10 +521,13 @@ bool MocNg::ShouldRegisterMetaType(clang::QualType T)
         return true;
     }
 
-    const clang::ClassTemplateSpecializationDecl* TD = llvm::dyn_cast_or_null<clang::ClassTemplateSpecializationDecl>(T->getAsCXXRecordDecl());
-    if (TD) {
-        if (!TD->hasDefinition())
-            return false;
+    if (auto TD = llvm::dyn_cast_or_null<clang::ClassTemplateSpecializationDecl>(T->getAsCXXRecordDecl())) {
+        if (!TD->hasDefinition()) {
+            if (auto CTD = TD->getSpecializedTemplate()) {
+                if (CTD->getTemplatedDecl() && !CTD->getTemplatedDecl()->hasDefinition())
+                    return false;
+            }
+        }
         for (uint I = 0; I < TD->getTemplateArgs().size(); ++I) {
             const auto &Arg = TD->getTemplateArgs().get(I);
             if (Arg.getKind() == clang::TemplateArgument::Type) {
