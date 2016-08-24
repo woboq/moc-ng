@@ -38,6 +38,7 @@ class MocPluginASTConsumer : public MocASTConsumer {
     bool done = false;
 
     bool HandleTopLevelDecl(clang::DeclGroupRef D) override {
+      MocASTConsumer::HandleTopLevelDecl(D);
       auto &PP = ci.getPreprocessor();
 
       if (done) {
@@ -74,14 +75,11 @@ class MocPluginASTConsumer : public MocASTConsumer {
       #endif
 
 
-      if (!objects.size())
+      if (!objects.size() && !namespaces.size())
         return true;
 
       if (!PPCallbacks->IsInMainFile)
         return true;
-
-
-      PP.getCurrentFileLexer();
 
       PP.EnableBacktrackAtThisPos();
       clang::Token Tok;
@@ -96,9 +94,9 @@ class MocPluginASTConsumer : public MocASTConsumer {
         std::string code = generate();
         if (!code.empty()) {
           objects.clear();
-          auto Buf = maybe_unique(llvm::MemoryBuffer::getMemBufferCopy( code, "qt_moc"));
-          clang::SourceLocation Loc = PP.getSourceManager().getFileLoc(D.getSingleDecl()->getLocEnd());
-          PP.EnterSourceFile(CreateFileIDForMemBuffer(PP, Buf, Loc), nullptr, Loc);
+          namespaces.clear();
+          auto Buf = maybe_unique(llvm::MemoryBuffer::getMemBufferCopy(code, "qt_moc"));
+          PP.EnterSourceFile(CreateFileIDForMemBuffer(PP, Buf, {}), nullptr, {});
         } else {
           ci.getPreprocessor().enableIncrementalProcessing(false);
           PP.Backtrack();
@@ -163,6 +161,23 @@ class MocPluginASTConsumer : public MocASTConsumer {
 
           Generator G(&Def, OS, *ctx, &Moc);
           G.GenerateCode();
+      }
+      for (const NamespaceDef &Def : namespaces) {
+            const clang::FunctionDecl *Key = nullptr;
+            for (auto it = Def.Namespace->decls_begin(); it != Def.Namespace->decls_end(); ++it) {
+                Key = llvm::dyn_cast<const clang::FunctionDecl>(*it);
+                if (Key)
+                    break;
+                if (auto RD = llvm::dyn_cast<const clang::CXXRecordDecl>(*it)) {
+                    Key = ctx->getCurrentKeyFunction(RD);
+                    if (Key)
+                        break;
+                }
+            }
+            if (Key && !Key->hasBody())
+                continue;
+            Generator G(&Def, OS, *ctx, &Moc);
+            G.GenerateCode();
       }
       return Code;
     }

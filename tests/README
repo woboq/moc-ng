@@ -1,19 +1,26 @@
 
 To test the moc binary, just replace the normal moc by the drop in remplacement
 and run qmake as usual, then make check.
+Qt tests can also be run.
 
 
 To test the plugin, we need to make sure qmake does not want to run moc.
 Replace the occurences of Q_OBJECT so qmake ignores it.
 The CONFIG+=no_moc is there only for templates2/templates2.pro so it does not run moc either.
 
-git ls-files | xargs sed -i "s|Q_OBJECT|/* qmake ignore Q_OBJECT */\n    Q_OBJECT|"
-git ls-files | xargs sed -i "s|Q_GADGET|/* qmake ignore Q_GADGET */\n    Q_GADGET|"
-git ls-files | xargs sed -i "s|Q_NAMESPACE|/* qmake ignore Q_NAMESPACE */\n    Q_NAMESPACE|"
+git ls-files | xargs sed -i "s|Q_OBJECT|/* qmake ignore Q_OBJECT */ Q_OBJECT|"
+git ls-files | xargs sed -i "s|Q_GADGET|/* qmake ignore Q_GADGET */ Q_GADGET|"
+git ls-files | xargs sed -i "s|Q_NAMESPACE|/* qmake ignore Q_NAMESPACE */ Q_NAMESPACE|"
 git ls-files | xargs sed -i '/^#include "moc_/d'
 git ls-files | xargs sed -i '/^#include ".*\.moc"$/d'
 
 qmake ../tests QMAKE_CXX=clang++ "QMAKE_CXXFLAGS=-std=c++1z -Xclang -load -Xclang path/to/libmocng_plugin.so -Xclang -add-plugin -Xclang moc" CONFIG+=no_moc
-
 make check
+
+This also works for tst_moc and other Qt tests.
+
+Note that tst_moc needs to add #include "plugin_metadata.h"  for the link to work. And of course
+since we did not run real moc with command line argument, tst_Moc::specifyMetaTagsFromCmdline fails.
+The slors of QTBUG12260_defaultTemplate_Object cannot be parsed properly, so they need to be
+commented out. As a result, tst_Moc::QTBUG12260_defaultTemplate also fails)
 
