@@ -429,6 +429,8 @@ invalidArg:
 
   Argv.push_back("-fsyntax-only");
 
+  Argv.push_back("-include"); Argv.push_back("QtCore/QObject"); // QObject should always be included
+
   clang::tooling::ToolInvocation Inv(Argv, new MocAction, &FM);
 
   const EmbeddedFile *f = EmbeddedFiles;

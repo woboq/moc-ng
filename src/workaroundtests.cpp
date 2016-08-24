@@ -37,7 +37,7 @@ bool Generator::WorkaroundTests(llvm::StringRef ClassName, const clang::CXXMetho
         Match = llvm::StringSwitch<bool>(MethodName)
             // The wording of the warnings is not the same with moc-ng (it is better)
             .Cases("warnings", "warnOnExtraSignalSlotQualifiaction", "warnOnMultipleInheritance", true)
-            .Cases("forgottenQInterface", "defineMacroViaCmdline", "warnOnPropertyWithoutREAD", true)
+            .Cases("forgottenQInterface", "warnOnPropertyWithoutREAD", true)
             .Cases("warnOnVirtualSignal", "notifyError", "optionsFileError", true)
 
             // Small difference in the handling of the options
@@ -46,7 +46,7 @@ bool Generator::WorkaroundTests(llvm::StringRef ClassName, const clang::CXXMetho
             // Not implemented because I was focusing on Linux! ### FIXME
             .Case("frameworkSearchPath", true)
 
-            // The header don't include QObject (that could be easy to solve upstream)
+            // The header is not self contained (that could be easy to solve upstream)
             .Case("templateGtGt", true)
 
             // moc -E  to preprocess behave differently
