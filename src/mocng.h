@@ -34,6 +34,7 @@ namespace clang {
 class CXXMethodDecl;
 class CXXRecordDecl;
 class CXXConstructorDecl;
+class NamespaceDecl;
 class EnumDecl;
 class Preprocessor;
 class Sema;
@@ -77,17 +78,7 @@ struct PluginData {
     QBJS::Value MetaData;
 };
 
-
-struct ClassDef {
-
-    clang::CXXRecordDecl *Record = nullptr;
-
-    // This list only includes the things registered with the keywords
-    std::vector<clang::CXXMethodDecl*> Signals;
-    std::vector<clang::CXXMethodDecl*> Slots;
-    std::vector<PrivateSlotDef> PrivateSlots;
-    std::vector<clang::CXXMethodDecl*> Methods;
-    std::vector<clang::CXXConstructorDecl*> Constructors;
+struct BaseDef {
     std::vector<std::tuple<clang::EnumDecl*, std::string, bool>> Enums;
 
     void addEnum(clang::EnumDecl *E, std::string Alias, bool IsFlag) {
@@ -100,15 +91,29 @@ struct ClassDef {
 
     std::vector<clang::CXXRecordDecl *> Extra;
     void addExtra(clang::CXXRecordDecl *E) {
-        if (!E || E == Record)
+        if (!E)
             return;
         if (std::find(Extra.begin(), Extra.end(), E) != Extra.end())
             return;
         Extra.push_back(E);
     }
 
-    std::vector<std::string> Interfaces;
     std::vector<std::pair<std::string, std::string>> ClassInfo;
+};
+
+struct ClassDef : BaseDef {
+
+    clang::CXXRecordDecl *Record = nullptr;
+
+    // This list only includes the things registered with the keywords
+    std::vector<clang::CXXMethodDecl*> Signals;
+    std::vector<clang::CXXMethodDecl*> Slots;
+    std::vector<PrivateSlotDef> PrivateSlots;
+    std::vector<clang::CXXMethodDecl*> Methods;
+    std::vector<clang::CXXConstructorDecl*> Constructors;
+
+
+    std::vector<std::string> Interfaces;
     PluginData Plugin;
 
     std::vector<PropertyDef> Properties;
@@ -120,7 +125,11 @@ struct ClassDef {
     int PrivateSlotCount = 0;
     int RevisionPropertyCount = 0;
     int RevisionMethodCount = 0;
+};
 
+struct NamespaceDef : BaseDef {
+    clang::NamespaceDecl *Namespace = nullptr;
+    bool hasQNamespace = false;
 };
 
 class MocNg {
@@ -133,6 +142,7 @@ public:
     InterfaceMap interfaces;
 
     ClassDef parseClass (clang::CXXRecordDecl* RD, clang::Sema& Sema);
+    NamespaceDef parseNamespace(clang::NamespaceDecl* ND, clang::Sema& Sema);
 
     bool HasPlugin = false;
 

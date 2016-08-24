@@ -34,6 +34,7 @@ protected:
     MocPPCallbacks *PPCallbacks = nullptr;
 
     std::vector<ClassDef> objects;
+    std::vector<NamespaceDef> namespaces;
     MocNg Moc;
 
 public:
@@ -42,5 +43,6 @@ public:
 
     virtual void Initialize(clang::ASTContext& Ctx) override;
     void HandleTagDeclDefinition(clang::TagDecl* D) override;
+    virtual bool HandleTopLevelDecl(clang::DeclGroupRef D) override;
 };
 

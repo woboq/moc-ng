@@ -312,6 +312,7 @@ std::string PropertyParser::parseType(bool SupressDiagnostics) {
                 /*if (!R)
                     IsEnum = false;*/
 
+                if (Extra == RD) Extra = nullptr;
                 if(Extra) {
                     bool isQObjectOrQGadget = false;
                     for (auto it = Extra->decls_begin(); it != Extra->decls_end(); ++it) {

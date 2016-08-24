@@ -85,3 +85,18 @@ void MocASTConsumer::HandleTagDeclDefinition(clang::TagDecl* D)
         ci.getPreprocessor().enableIncrementalProcessing();
     }
 }
+
+bool MocASTConsumer::HandleTopLevelDecl(clang::DeclGroupRef D)
+{
+    for (clang::Decl *Decl : D) {
+        if (clang::NamespaceDecl *NS = llvm::dyn_cast<clang::NamespaceDecl>(Decl)) {
+            // Try to find Q_NAMESPACE
+            NamespaceDef Def = Moc.parseNamespace(NS, ci.getSema());
+            if (Def.hasQNamespace) {
+                namespaces.push_back(std::move(Def));
+                ci.getPreprocessor().enableIncrementalProcessing();
+            }
+        }
+    }
+    return clang::ASTConsumer::HandleTopLevelDecl(D);
+}

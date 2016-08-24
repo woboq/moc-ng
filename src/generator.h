@@ -95,6 +95,7 @@ enum { OutputRevision = 7,
 #define MOCNG_VERSION_STR "alpha 1"
 
 class Generator {
+    const BaseDef *Def;
     const ClassDef *CDef;
     llvm::raw_ostream& OS;
     llvm::raw_ostream& OS_TemplateHeader;
@@ -114,8 +115,10 @@ class Generator {
     MocNg *Moc;
 
 public:
-    Generator(const ClassDef *CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, MocNg *Moc,
+    explicit Generator(const ClassDef *CDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, MocNg *Moc,
               llvm::raw_ostream *OS_TemplateHeader = nullptr);
+    // For namespaces
+    explicit Generator(const NamespaceDef *NDef, llvm::raw_ostream& OS, clang::ASTContext & Ctx, MocNg *Moc);
 
     bool IsQtNamespace = false;
 

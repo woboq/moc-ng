@@ -196,7 +196,7 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
 
 
 
-static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::Sema &Sema) {
+static void parseEnums(BaseDef &Def, clang::DeclContext *Context, bool isFlag, clang::Expr *Content, clang::Sema &Sema) {
     clang::Preprocessor &PP = Sema.getPreprocessor();
     clang::StringLiteral *Val = llvm::dyn_cast<clang::StringLiteral>(Content);
     if (!Val) {
@@ -227,10 +227,10 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
                 auto NextLoc = GetFromLiteral(Next, Val, PP);
 #if CLANG_VERSION_MAJOR >= 4
                 clang::Sema::NestedNameSpecInfo NameInfo(II, TokLoc, NextLoc);
-                if (Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(Def.Record),
+                if (Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(Context),
                         NameInfo, false, SS))
 #else
-                if (Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(Def.Record), *II,
+                if (Sema.ActOnCXXNestedNameSpecifier(Sema.getScopeForContext(Context), *II,
                         TokLoc, NextLoc, {}, false, SS))
 #endif
                 {
@@ -242,10 +242,10 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
 
             clang::LookupResult Found(Sema, II, GetFromLiteral(Tok, Val, PP), clang::Sema::LookupNestedNameSpecifierName);
             if (SS.isEmpty())
-                Sema.LookupQualifiedName(Found, Def.Record);
+                Sema.LookupQualifiedName(Found, Context);
             else {
                 clang::DeclContext* DC = Sema.computeDeclContext(SS);
-                Sema.LookupQualifiedName(Found, DC ? DC : Def.Record);
+                Sema.LookupQualifiedName(Found, DC ? DC : Context);
             }
 
             llvm::StringRef Alias;
@@ -274,7 +274,7 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
                                             "no enum names %0")) << Found.getLookupName();
                 break;
             }
-            if (R->getDeclContext() == Def.Record) {
+            if (R->getDeclContext() == Context) {
                 if (Alias.empty() && R->getIdentifier())
                     Alias = R->getName();
                 Def.addEnum(R, Alias.empty() ? R->getNameAsString() : std::string(Alias), isFlag);
@@ -301,14 +301,14 @@ static void parseEnums(ClassDef &Def, bool isFlag, clang::Expr *Content, clang::
 }
 
 template<int N>
-static std::pair<clang::StringLiteral*, clang::StringLiteral *> ExtractLiterals(clang::ParenExpr *PE,
+static std::pair<clang::StringLiteral*, clang::StringLiteral *> ExtractLiterals(clang::Expr *E,
                                                                                 const clang::Preprocessor &PP,
                                                                                 const char *Keyword,
                                                                                 const char (&Error)[N]) {
-    clang::BinaryOperator* BO = llvm::dyn_cast<clang::BinaryOperator>(PE->getSubExpr());
+    clang::BinaryOperator* BO = llvm::dyn_cast<clang::BinaryOperator>(E);
     clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
     if (!BO) {
-        PP.getDiagnostics().Report(PE->getExprLoc(),
+        PP.getDiagnostics().Report(E->getExprLoc(),
                                    PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
                                     "Invalid %0 annotation")) << Keyword;
     } else {
@@ -322,6 +322,19 @@ static std::pair<clang::StringLiteral*, clang::StringLiteral *> ExtractLiterals(
     return {Val1, Val2};
 }
 
+static bool IsAnnotationStaticAssert(clang::Decl *Decl, llvm::StringRef *Key, clang::Expr **SubExp) {
+    if (clang::StaticAssertDecl *S = llvm::dyn_cast<clang::StaticAssertDecl>(Decl)) {
+        if (auto *E = llvm::dyn_cast<clang::UnaryExprOrTypeTraitExpr>(S->getAssertExpr()))
+            if (clang::ParenExpr *PE = llvm::dyn_cast<clang::ParenExpr>(E->getArgumentExpr()))
+                {
+                    *Key = S->getMessage()->getString();
+                    *SubExp = PE->getSubExpr();
+                    return true;
+                }
+    }
+    return false;
+}
+
 ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
 {
     clang::Preprocessor &PP = Sema.getPreprocessor();
@@ -329,78 +342,75 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
     Def.Record = RD;
 
     for (auto it = RD->decls_begin(); it != RD->decls_end(); ++it) {
-        if (clang::StaticAssertDecl *S = llvm::dyn_cast<clang::StaticAssertDecl>(*it) ) {
-            if (auto *E = llvm::dyn_cast<clang::UnaryExprOrTypeTraitExpr>(S->getAssertExpr()))
-                if (clang::ParenExpr *PE = llvm::dyn_cast<clang::ParenExpr>(E->getArgumentExpr()))
-            {
-                llvm::StringRef key = S->getMessage()->getString();
-                if (key == "qt_property") {
-                    clang::StringLiteral *Val = llvm::dyn_cast<clang::StringLiteral>(PE->getSubExpr());
-                    if (Val) {
-                        PropertyParser Parser(Val->getString(),
-    //                                          Val->getStrTokenLoc(0),
-                                            Val->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
-                                            Sema, Def.Record);
-                        Def.Properties.push_back(Parser.parseProperty());
-                        Def.addExtra(Parser.Extra);
-                    } else {
-                        PP.getDiagnostics().Report(S->getLocation(),
-                                                   PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
-                                                   "Invalid Q_PROPERTY annotation"));
-                    }
-                } else if (key == "qt_private_property") {
-                    clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
-                    std::tie(Val1, Val2) = ExtractLiterals(PE, PP, "Q_PRIVATE_PROPERTY",
-                                                           "Invalid Q_PRIVATE_PROPERTY annotation");
-
-                    if (Val1 && Val2) {
-                        PropertyParser Parser(Val2->getString(),
-                                              Val2->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
-                                              Sema, Def.Record);
-                        PropertyDef P = Parser.parseProperty(true);
-                        P.inPrivateClass = Val1->getString();
-                        Def.Properties.push_back(std::move(P));
-                        Def.addExtra(Parser.Extra);
-                    }
-                } else if (key == "qt_private_slot") {
-                    clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
-                    std::tie(Val1, Val2) = ExtractLiterals(PE, PP, "Q_PRIVATE_SLOT",
-                                                           "Invalid Q_PRIVATE_SLOT annotation");
-                    if (Val1 && Val2) {
-                        PropertyParser Parser(Val2->getString(),
-                                              Val2->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
-                                              Sema, Def.Record);
-                        PrivateSlotDef P = Parser.parsePrivateSlot();
-                        P.InPrivateClass = Val1->getString();
-                        if (!P.Name.empty()) {
-                            Def.PrivateSlotCount += P.NumDefault + 1;
-                            Def.PrivateSlots.push_back(std::move(P));
-                        }
-                    }
-                } else if (key == "qt_enums")  {
-                    parseEnums(Def, false, PE->getSubExpr(), Sema);
-                } else if (key == "qt_flags")  {
-                    parseEnums(Def, true, PE->getSubExpr(), Sema);
-                } else if (key == "qt_qobject") {
-                    Def.HasQObject = true;
-                } else if (key == "qt_fake") {
-                    Def.HasQGadget = false;
-                } else if (key == "qt_qgadget") {
-                    Def.HasQGadget = true;
-                } else if (key == "qt_classinfo") {
-                    clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
-                    std::tie(Val1, Val2) = ExtractLiterals(PE, PP, "Q_CLASSINFO",
-                                                           "Expected string literal in Q_CLASSINFO");
-
-                    if (Val1 && Val2) {
-                        Def.ClassInfo.emplace_back(Val1->getString(), Val2->getString());
-                    }
-                } else if (key == "qt_interfaces") {
-                    parseInterfaces(Def, PE->getSubExpr(), Sema);
-                } else if (key == "qt_plugin_metadata") {
-                    parsePluginMetaData(Def, PE->getSubExpr(), Sema);
-                    HasPlugin = true;
+        llvm::StringRef key;
+        clang::Expr *SubExp;
+        if (IsAnnotationStaticAssert(*it, &key, &SubExp)) {
+            if (key == "qt_property") {
+                clang::StringLiteral *Val = llvm::dyn_cast<clang::StringLiteral>(SubExp);
+                if (Val) {
+                    PropertyParser Parser(Val->getString(),
+//                                          Val->getStrTokenLoc(0),
+                                        Val->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
+                                        Sema, Def.Record);
+                    Def.Properties.push_back(Parser.parseProperty());
+                    Def.addExtra(Parser.Extra);
+                } else {
+                    PP.getDiagnostics().Report((*it)->getLocation(),
+                                                PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
+                                                "Invalid Q_PROPERTY annotation"));
                 }
+            } else if (key == "qt_private_property") {
+                clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
+                std::tie(Val1, Val2) = ExtractLiterals(SubExp, PP, "Q_PRIVATE_PROPERTY",
+                                                        "Invalid Q_PRIVATE_PROPERTY annotation");
+
+                if (Val1 && Val2) {
+                    PropertyParser Parser(Val2->getString(),
+                                            Val2->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
+                                            Sema, Def.Record);
+                    PropertyDef P = Parser.parseProperty(true);
+                    P.inPrivateClass = Val1->getString();
+                    Def.Properties.push_back(std::move(P));
+                    Def.addExtra(Parser.Extra);
+                }
+            } else if (key == "qt_private_slot") {
+                clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
+                std::tie(Val1, Val2) = ExtractLiterals(SubExp, PP, "Q_PRIVATE_SLOT",
+                                                        "Invalid Q_PRIVATE_SLOT annotation");
+                if (Val1 && Val2) {
+                    PropertyParser Parser(Val2->getString(),
+                                            Val2->getLocationOfByte(0, PP.getSourceManager(), PP.getLangOpts(), PP.getTargetInfo()),
+                                            Sema, Def.Record);
+                    PrivateSlotDef P = Parser.parsePrivateSlot();
+                    P.InPrivateClass = Val1->getString();
+                    if (!P.Name.empty()) {
+                        Def.PrivateSlotCount += P.NumDefault + 1;
+                        Def.PrivateSlots.push_back(std::move(P));
+                    }
+                }
+            } else if (key == "qt_enums")  {
+                parseEnums(Def, Def.Record, false, SubExp, Sema);
+            } else if (key == "qt_flags")  {
+                parseEnums(Def, Def.Record, true, SubExp, Sema);
+            } else if (key == "qt_qobject") {
+                Def.HasQObject = true;
+            } else if (key == "qt_fake") {
+                Def.HasQGadget = false;
+            } else if (key == "qt_qgadget") {
+                Def.HasQGadget = true;
+            } else if (key == "qt_classinfo") {
+                clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
+                std::tie(Val1, Val2) = ExtractLiterals(SubExp, PP, "Q_CLASSINFO",
+                                                        "Expected string literal in Q_CLASSINFO");
+
+                if (Val1 && Val2) {
+                    Def.ClassInfo.emplace_back(Val1->getString(), Val2->getString());
+                }
+            } else if (key == "qt_interfaces") {
+                parseInterfaces(Def, SubExp, Sema);
+            } else if (key == "qt_plugin_metadata") {
+                parsePluginMetaData(Def, SubExp, Sema);
+                HasPlugin = true;
             }
         } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {
             for (auto attr_it = M->specific_attr_begin<clang::AnnotateAttr>();
@@ -449,6 +459,26 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
 
         if (P.revision > 0)
             Def.RevisionPropertyCount++;
+    }
+    return Def;
+}
+
+NamespaceDef MocNg::parseNamespace(clang::NamespaceDecl* ND, clang::Sema& Sema)
+{
+    NamespaceDef Def;
+    Def.Namespace = ND;
+    for (auto it = ND->decls_begin(); it != ND->decls_end(); ++it) {
+        llvm::StringRef key;
+        clang::Expr *SubExp;
+        if (IsAnnotationStaticAssert(*it, &key, &SubExp)) {
+            if (key == "qt_qnamespace") {
+                Def.hasQNamespace = true;
+            } else if (key == "qt_enums")  {
+                parseEnums(Def, ND, false, SubExp, Sema);
+            } else if (key == "qt_flags")  {
+                parseEnums(Def, ND, true, SubExp, Sema);
+            }
+        }
     }
     return Def;
 }

@@ -216,6 +216,12 @@ struct MocNGASTConsumer : public MocASTConsumer {
               G.IsQtNamespace = true;
           G.GenerateCode();
         };
+        for (const NamespaceDef &Def : namespaces) {
+          Generator G(&Def, Out, Ctx, &Moc);
+          G.MetaData = Options.MetaData;
+          G.GenerateCode();
+        };
+
 
         Out << "QT_END_MOC_NAMESPACE\n";
         if (OS_TemplateHeader) {

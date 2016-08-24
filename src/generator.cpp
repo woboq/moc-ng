@@ -349,8 +349,8 @@ static void PrintTemplateParameters(llvm::raw_ostream &Out, clang::TemplateParam
 
 Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTContext& Ctx,
                      MocNg* Moc, llvm::raw_ostream *OS_TemplateHeader)
-    : CDef(CDef), OS(OS), OS_TemplateHeader(OS_TemplateHeader ? *OS_TemplateHeader : OS), Ctx(Ctx),
-      PrintPolicy(Ctx.getPrintingPolicy()), Moc(Moc)
+    : Def(CDef), CDef(CDef), OS(OS), OS_TemplateHeader(OS_TemplateHeader ? *OS_TemplateHeader : OS),
+      Ctx(Ctx), PrintPolicy(Ctx.getPrintingPolicy()), Moc(Moc)
 {
     PrintPolicy.SuppressTagKeyword = true;
     PrintPolicy.SuppressUnwrittenScope = true;
@@ -400,12 +400,29 @@ Generator::Generator(const ClassDef* CDef, llvm::raw_ostream& OS, clang::ASTCont
     }
 }
 
+Generator::Generator(const NamespaceDef* NDef, llvm::raw_ostream& OS, clang::ASTContext& Ctx, MocNg* Moc)
+    : Def(NDef), CDef(nullptr), OS(OS), OS_TemplateHeader(OS), Ctx(Ctx),
+      PrintPolicy(Ctx.getPrintingPolicy()), Moc(Moc)
+{
+    PrintPolicy.SuppressTagKeyword = true;
+    PrintPolicy.SuppressUnwrittenScope = true;
+    PrintPolicy.AnonymousTagLocations = false;
+    HasTemplateHeader = false;
+
+    {
+        llvm::raw_string_ostream QualNameS(QualName);
+        NDef->Namespace->printQualifiedName(QualNameS, PrintPolicy);
+    }
+
+    MethodCount = 0;
+}
+
+
 void Generator::GenerateCode()
 {
     // Build the data array
-
     std::string QualifiedClassNameIdentifier = QualName;
-    if (CDef->Record->getDescribedClassTemplate()) {
+    if (CDef && CDef->Record->getDescribedClassTemplate()) {
         auto pos = QualifiedClassNameIdentifier.find('<');
         QualifiedClassNameIdentifier.resize(std::min(QualifiedClassNameIdentifier.size(), pos));
     }
@@ -431,135 +448,140 @@ void Generator::GenerateCode()
     OS << "\n" << Static << "const uint qt_meta_data_" << QualifiedClassNameIdentifier << "[] = {\n"
           "    " << OutputRevision << ", // revision\n"
           "    " << StrIdx(QualName) << ", // classname\n"
-          "    " << CDef->ClassInfo.size() << ", " << I(CDef->ClassInfo.size() * 2) << ", //classinfo\n";
+          "    " << Def->ClassInfo.size() << ", " << I(Def->ClassInfo.size() * 2) << ", //classinfo\n";
 
     OS << "    " << MethodCount << ", " << I(MethodCount * 5) << ", // methods \n";
 
-    if (CDef->RevisionMethodCount)
+    if (CDef && CDef->RevisionMethodCount)
         Index += MethodCount;
 
     int ParamsIndex = Index;
-    int TotalParameterCount = AggregateParameterCount(CDef->Signals) + AggregateParameterCount(CDef->Slots)
-                            + AggregateParameterCount(CDef->Methods) + AggregateParameterCount(CDef->Constructors);
-    for (const PrivateSlotDef &P : CDef->PrivateSlots)
-        TotalParameterCount += 1 + P.Args.size() * (1 + P.NumDefault) - (P.NumDefault * (P.NumDefault + 1) / 2);
-    Index += TotalParameterCount * 2 // type and parameter names
-           - MethodCount - CountMethod(CDef->Constructors);  // return parameter don't have names
+    if (CDef) {
+        int TotalParameterCount = AggregateParameterCount(CDef->Signals) + AggregateParameterCount(CDef->Slots)
+                                + AggregateParameterCount(CDef->Methods) + AggregateParameterCount(CDef->Constructors);
+        for (const PrivateSlotDef &P : CDef->PrivateSlots)
+            TotalParameterCount += 1 + P.Args.size() * (1 + P.NumDefault) - (P.NumDefault * (P.NumDefault + 1) / 2);
+        Index += TotalParameterCount * 2 // type and parameter names
+            - MethodCount - CountMethod(CDef->Constructors);  // return parameter don't have names
+    }
 
-    OS << "    " << CDef->Properties.size() << ", " << I(CDef->Properties.size() * 3) << ", // properties \n";
+    if (CDef)
+        OS << "    " << CDef->Properties.size() << ", " << I(CDef->Properties.size() * 3) << ", // properties \n";
+    else
+        OS << "    " << 0 << ", " << 0 << ", // properties \n";
 
-    if (CDef->NotifyCount)
+    if (CDef && CDef->NotifyCount)
         Index += CDef->Properties.size();
-    if (CDef->RevisionPropertyCount)
+    if (CDef && CDef->RevisionPropertyCount)
         Index += CDef->Properties.size();
 
-    OS << "    " << CDef->Enums.size() << ", " << I(CDef->Enums.size() * 4) << ", // enums \n";
+    OS << "    " << Def->Enums.size() << ", " << I(Def->Enums.size() * 4) << ", // enums \n";
     int EnumIndex = Index;
-    for (auto e : CDef->Enums)
+    for (auto e : Def->Enums)
         for (auto it = std::get<0>(e)->enumerator_begin() ; it != std::get<0>(e)->enumerator_end(); ++it)
             Index += 2;
 
-    int ConstructorCount = CountMethod(CDef->Constructors);
+    int ConstructorCount = CDef ? CountMethod(CDef->Constructors) : 0;
     OS << "    " << ConstructorCount << ", " << I(ConstructorCount * 5) << ", // constructors \n";
 
     int flags = 0;
-    if (CDef->HasQGadget) {
+    if (CDef && CDef->HasQGadget) {
         // Ideally, all the classes could have that flag. But this broke classes generated
         // by qdbusxml2cpp which generate code that require that we call qt_metacall for properties
         flags |= PropertyAccessInStaticMetaCall;
     }
     OS << "    " << flags << ", // flags \n";
 
-    OS << "    " << CountMethod(CDef->Signals) << ", // signalCount \n";
+    OS << "    " << (CDef ? CountMethod(CDef->Signals) : 0) << ", // signalCount \n";
 
-    if (CDef->ClassInfo.size()) {
+    if (Def->ClassInfo.size()) {
         OS << "\n  // classinfo: key, value\n";
-        for (const auto &I : CDef->ClassInfo)
+        for (const auto &I : Def->ClassInfo)
             OS << "    " << StrIdx(I.first) << ", " << StrIdx(I.second) << ",\n";
     }
 
-
-    GenerateFunctions(CDef->Signals, "signals", MethodSignal, ParamsIndex);
-    GenerateFunctions(CDef->Slots, "slots", MethodSlot, ParamsIndex);
-    for (const PrivateSlotDef &P : CDef->PrivateSlots) {
-        for (int Clone = 0; Clone <= P.NumDefault; ++Clone) {
-            int argc = (P.Args.size() - Clone);
-            OS << "    " << StrIdx(P.Name) << ", " << argc << ", " << ParamsIndex << ", 0, 0x";
-            unsigned int Flag = AccessPrivate | MethodSlot;
-            if (Clone) Flag |= MethodCloned;
-            OS.write_hex(Flag) << ",\n";
-            ParamsIndex += 1 + argc * 2;
-        }
-    }
-    GenerateFunctions(CDef->Methods, "methods", MethodMethod, ParamsIndex);
-
-    if (CDef->RevisionMethodCount) {
-        auto GenerateRevision = [&](const clang::CXXMethodDecl *M, int Clone) {
-            llvm::StringRef SubStr = "0";
-            for (auto attr_it = M->specific_attr_begin<clang::AnnotateAttr>();
-                    attr_it != M->specific_attr_end<clang::AnnotateAttr>();
-                    ++attr_it) {
-                const clang::AnnotateAttr *A = *attr_it;
-                if (A->getAnnotation().startswith("qt_revision:")) {
-                    SubStr = A->getAnnotation().substr(sizeof("qt_revision:")-1);
-                }
-            }
-            OS << " " << SubStr << ",";
-        };
-        OS << "\n // method revisions\n    ";
-        ForEachMethod(CDef->Signals, GenerateRevision);
-        OS << "\n    ";
-        ForEachMethod(CDef->Slots, GenerateRevision);
-        //OS << "\n    ";
+    if (CDef) {
+        GenerateFunctions(CDef->Signals, "signals", MethodSignal, ParamsIndex);
+        GenerateFunctions(CDef->Slots, "slots", MethodSlot, ParamsIndex);
         for (const PrivateSlotDef &P : CDef->PrivateSlots) {
-            for (int Clone = 0; Clone <= P.NumDefault; ++Clone)
-                OS << " 0,    ";
+            for (int Clone = 0; Clone <= P.NumDefault; ++Clone) {
+                int argc = (P.Args.size() - Clone);
+                OS << "    " << StrIdx(P.Name) << ", " << argc << ", " << ParamsIndex << ", 0, 0x";
+                unsigned int Flag = AccessPrivate | MethodSlot;
+                if (Clone) Flag |= MethodCloned;
+                OS.write_hex(Flag) << ",\n";
+                ParamsIndex += 1 + argc * 2;
+            }
         }
-        OS << "\n    ";
-        ForEachMethod(CDef->Methods, GenerateRevision);
-        OS << "\n";
+        GenerateFunctions(CDef->Methods, "methods", MethodMethod, ParamsIndex);
+
+
+        if (CDef->RevisionMethodCount) {
+            auto GenerateRevision = [&](const clang::CXXMethodDecl *M, int Clone) {
+                llvm::StringRef SubStr = "0";
+                for (auto attr_it = M->specific_attr_begin<clang::AnnotateAttr>();
+                        attr_it != M->specific_attr_end<clang::AnnotateAttr>();
+                        ++attr_it) {
+                    const clang::AnnotateAttr *A = *attr_it;
+                    if (A->getAnnotation().startswith("qt_revision:")) {
+                        SubStr = A->getAnnotation().substr(sizeof("qt_revision:")-1);
+                    }
+                }
+                OS << " " << SubStr << ",";
+            };
+            OS << "\n // method revisions\n    ";
+            ForEachMethod(CDef->Signals, GenerateRevision);
+            OS << "\n    ";
+            ForEachMethod(CDef->Slots, GenerateRevision);
+            //OS << "\n    ";
+            for (const PrivateSlotDef &P : CDef->PrivateSlots) {
+                for (int Clone = 0; Clone <= P.NumDefault; ++Clone)
+                    OS << " 0,    ";
+            }
+            OS << "\n    ";
+            ForEachMethod(CDef->Methods, GenerateRevision);
+            OS << "\n";
+        }
+
+        GenerateFunctionParameters(CDef->Signals, "signals");
+        GenerateFunctionParameters(CDef->Slots, "slots");
+        for (const PrivateSlotDef &P : CDef->PrivateSlots) {
+            for (int Clone = 0; Clone <= P.NumDefault; ++Clone) {
+                int argc = (P.Args.size() - Clone);
+                OS << "    ";
+                if (P.ReturnType == "void") OS << "QMetaType::Void";
+                else OS << "0x80000000 | " << StrIdx(P.ReturnType);
+                for (int j = 0; j < argc; j++) {
+                    OS << ", ";
+                    if (P.Args[j] == "void") OS << "QMetaType::Void";
+                    else OS << "0x80000000 | " << StrIdx(P.Args[j]);
+                }
+                //Names
+                for (int j = 0; j < argc; j++) {
+                        OS << ", " << StrIdx("");
+                }
+                OS << ",\n";
+            }
+        }
+        GenerateFunctionParameters(CDef->Methods, "methods");
+        GenerateFunctionParameters(CDef->Constructors, "constructors");
+
+        GenerateProperties();
     }
 
-
-
-    GenerateFunctionParameters(CDef->Signals, "signals");
-    GenerateFunctionParameters(CDef->Slots, "slots");
-    for (const PrivateSlotDef &P : CDef->PrivateSlots) {
-        for (int Clone = 0; Clone <= P.NumDefault; ++Clone) {
-            int argc = (P.Args.size() - Clone);
-            OS << "    ";
-            if (P.ReturnType == "void") OS << "QMetaType::Void";
-            else OS << "0x80000000 | " << StrIdx(P.ReturnType);
-            for (int j = 0; j < argc; j++) {
-                OS << ", ";
-                if (P.Args[j] == "void") OS << "QMetaType::Void";
-                else OS << "0x80000000 | " << StrIdx(P.Args[j]);
-            }
-            //Names
-            for (int j = 0; j < argc; j++) {
-                    OS << ", " << StrIdx("");
-            }
-            OS << ",\n";
-        }
-    }
-    GenerateFunctionParameters(CDef->Methods, "methods");
-    GenerateFunctionParameters(CDef->Constructors, "constructors");
-
-    GenerateProperties();
     GenerateEnums(EnumIndex);
 
-    GenerateFunctions(CDef->Constructors, "constructors", MethodConstructor, ParamsIndex);
+    if (CDef) {
+        GenerateFunctions(CDef->Constructors, "constructors", MethodConstructor, ParamsIndex);
+    }
 
     OS << "\n    0    // eod\n};\n";
-
-
 
     // StringArray;
 
     int TotalLen = 1;
     for (const auto &S : Strings)
         TotalLen += S.size() + 1;
-
 
     OS_TemplateHeader << "struct qt_meta_stringdata_" << QualifiedClassNameIdentifier << "_t {\n"
           "    QByteArrayData data[" << Strings.size() << "];\n"
@@ -627,11 +649,11 @@ void Generator::GenerateCode()
     OS << "\"\n};\n"
           "#undef QT_MOC_LITERAL\n";
 
-    if (!CDef->Extra.empty()) {
+    if (!Def->Extra.empty()) {
         if (HasTemplateHeader)
             OS_TemplateHeader << "extern const QMetaObject * const qt_meta_extradata_" << QualifiedClassNameIdentifier << "[];\n";
         OS << Static << "const QMetaObject * const qt_meta_extradata_" << QualifiedClassNameIdentifier << "[] = {\n" ;
-        for (clang::CXXRecordDecl *E : CDef->Extra)
+        for (clang::CXXRecordDecl *E : Def->Extra)
             //TODO: Check that extra is a QObject
             OS << "    &" << E->getQualifiedNameAsString() << "::staticMetaObject,\n";
 
@@ -653,15 +675,15 @@ void Generator::GenerateCode()
     OS_TemplateHeader << ", qt_meta_stringdata_"<< QualifiedClassNameIdentifier <<".data,\n"
           "      qt_meta_data_" << QualifiedClassNameIdentifier << ", ";
 
-    bool HasStaticMetaCall = CDef->HasQObject || !CDef->Methods.empty() || !CDef->Properties.empty() || !CDef->Constructors.empty();
+    bool HasStaticMetaCall = CDef && (CDef->HasQObject || !CDef->Methods.empty() || !CDef->Properties.empty() || !CDef->Constructors.empty());
     if (HasStaticMetaCall) OS_TemplateHeader << "qt_static_metacall, ";
     else OS_TemplateHeader << "0, ";
 
-    if (!CDef->Extra.empty()) OS_TemplateHeader << "qt_meta_extradata_" << QualifiedClassNameIdentifier << ", ";
+    if (!Def->Extra.empty()) OS_TemplateHeader << "qt_meta_extradata_" << QualifiedClassNameIdentifier << ", ";
     else OS_TemplateHeader << "0, ";
     OS_TemplateHeader << "0}\n};\n";
 
-    if (CDef->HasQObject) {
+    if (CDef && CDef->HasQObject) {
         OS_TemplateHeader << TemplatePrefix << "const QMetaObject *" << QualName << "::metaObject() const\n{\n"
               "    return QObject::d_ptr->metaObject ? QObject::d_ptr->dynamicMetaObject() : &staticMetaObject;\n}\n";
 
@@ -702,7 +724,7 @@ void Generator::GenerateCode()
         GenerateStaticMetaCall();
     }
 
-    if (!CDef->Plugin.IID.empty()) {
+    if (CDef && !CDef->Plugin.IID.empty()) {
         OS << "\nQT_PLUGIN_METADATA_SECTION const uint qt_section_alignment_dummy = 42;\n"
               "#ifdef QT_NO_DEBUG\n";
         GeneratePluginMetaData(false);
@@ -1242,12 +1264,12 @@ void Generator::GenerateProperties()
 // Generate the data in the data array for the enum.
 void Generator::GenerateEnums(int EnumIndex)
 {
-    if (CDef->Enums.empty())
+    if (Def->Enums.empty())
         return;
 
     OS << "\n  // enums: name, flags, count, data\n";
 
-    for (auto e : CDef->Enums) {
+    for (auto e : Def->Enums) {
         int Count = 0;
         for (auto it = std::get<0>(e)->enumerator_begin() ; it != std::get<0>(e)->enumerator_end(); ++it)
             Count++;
@@ -1261,7 +1283,7 @@ void Generator::GenerateEnums(int EnumIndex)
     }
 
     OS << "\n  // enums data: key, valus\n";
-    for (auto e : CDef->Enums) {
+    for (auto e : Def->Enums) {
         for (auto it = std::get<0>(e)->enumerator_begin() ; it != std::get<0>(e)->enumerator_end(); ++it) {
             clang::EnumConstantDecl *E = *it;
             OS << "    " << StrIdx(E->getName()) << ", uint(" << QualName << "::";
