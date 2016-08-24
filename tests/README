@@ -1,0 +1,19 @@
+
+To test the moc binary, just replace the normal moc by the drop in remplacement
+and run qmake as usual, then make check.
+
+
+To test the plugin, we need to make sure qmake does not want to run moc.
+Replace the occurences of Q_OBJECT so qmake ignores it.
+The CONFIG+=no_moc is there only for templates2/templates2.pro so it does not run moc either.
+
+git ls-files | xargs sed -i "s|Q_OBJECT|/* qmake ignore Q_OBJECT */\n    Q_OBJECT|"
+git ls-files | xargs sed -i "s|Q_GADGET|/* qmake ignore Q_GADGET */\n    Q_GADGET|"
+git ls-files | xargs sed -i "s|Q_NAMESPACE|/* qmake ignore Q_NAMESPACE */\n    Q_NAMESPACE|"
+git ls-files | xargs sed -i '/^#include "moc_/d'
+git ls-files | xargs sed -i '/^#include ".*\.moc"$/d'
+
+qmake ../tests QMAKE_CXX=clang++ "QMAKE_CXXFLAGS=-std=c++1z -Xclang -load -Xclang path/to/libmocng_plugin.so -Xclang -add-plugin -Xclang moc" CONFIG+=no_moc
+
+make check
+

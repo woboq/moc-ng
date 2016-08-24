@@ -25,7 +25,7 @@ defineReplace(mocngCmdBase) {
 }
 
 
-for (s, TEMPLATEEHEADERS) {
+!no_moc:for (s, TEMPLATEEHEADERS) {
     sf = $$absolute_path($$s, $$_PRO_FILE_PWD_)
     QMAKE_INTERNAL_INCLUDED_FILES += $$sf
     sfl = $$cat($$sf, lines)
