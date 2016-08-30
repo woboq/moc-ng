@@ -396,6 +396,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                 Def.HasQObject = true;
             } else if (key == "qt_fake") {
                 Def.HasQGadget = false;
+                Def.HasQObject = false;
             } else if (key == "qt_qgadget") {
                 Def.HasQGadget = true;
             } else if (key == "qt_classinfo") {
