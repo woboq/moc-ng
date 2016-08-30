@@ -313,7 +313,11 @@ int main(int argc, const char **argv)
   Argv.push_back("-fPIC");
   Argv.push_back("-Wno-microsoft"); // get rid of a warning in qtextdocument.h
   Argv.push_back("-Wno-pragma-once-outside-header");
+#if CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR <= 5
   Argv.push_back("-std=c++11");
+#else
+  Argv.push_back("-std=c++14");
+#endif
 
   bool NextArgNotInput = false;
   bool HasInput = false;
