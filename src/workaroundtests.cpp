@@ -19,6 +19,7 @@
 
 #include "generator.h"
 #include <clang/AST/DeclCXX.h>
+#include <llvm/ADT/StringSwitch.h>
 
 /*
  * Some tests do not pass because moc is different from moc-ng and there is no reason for them
