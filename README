@@ -35,7 +35,7 @@ This version of moc has nice additional support compared to upstream moc:
  * Template support: You can have templated QObject
  * Automatically register all types using qRegisterMetaType
  * Supports trailing return type, auto return types for signals and slot and decltype in the
-   return type or parametter types.
+   return type or parameter types.
  * Support for nested classes.
 
 Not supported:
