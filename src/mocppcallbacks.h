@@ -19,6 +19,7 @@
 
 #include <clang/Lex/Preprocessor.h>
 #include <clang/Basic/Version.h>
+#include <set>
 
 class MocPPCallbacks : public clang::PPCallbacks {
     clang::Preprocessor &PP;
