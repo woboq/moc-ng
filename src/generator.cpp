@@ -901,7 +901,7 @@ void Generator::GenerateStaticMetaCall()
                     OS_TemplateHeader << "decltype(&_r)";
                 else
                     Ctx.getPointerType(ReturnType.getNonReferenceType().getUnqualifiedType()).print(OS, PrintPolicy);
-                OS_TemplateHeader << " >(_a[0]) = _r; }";
+                OS_TemplateHeader << " >(_a[0]) = qMove(_r); }";
             }
             OS_TemplateHeader <<  " break;\n";
         };
