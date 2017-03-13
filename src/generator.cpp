@@ -1146,8 +1146,7 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
     for (uint j = 0 ; j < MD->getNumParams(); ++j) {
         if (j) OS_TemplateHeader << ",";
         OS_TemplateHeader << MD->getParamDecl(j)->getType().getAsString(PrintPolicy);
-        if (!(j == MD->getNumParams() - 1 && HasPrivateSignal(MD)))
-            OS_TemplateHeader << " _t" << (j+1);;
+        OS_TemplateHeader << " _t" << (j+1);;
     }
     OS_TemplateHeader << ")";
     std::string This = "this";
@@ -1160,7 +1159,6 @@ void Generator::GenerateSignal(const clang::CXXMethodDecl *MD, int Idx)
     OS_TemplateHeader << "\n{\n";
     bool IsVoid = ReturnType->isVoidType();
     unsigned int NumParam = MD->getNumParams();
-    if (HasPrivateSignal(MD)) NumParam--;
     if (IsVoid && NumParam == 0) {
         OS_TemplateHeader << "    QMetaObject::activate(" << This << ", &staticMetaObject, " << Idx << ", 0);\n";
     } else {
