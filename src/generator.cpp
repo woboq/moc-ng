@@ -741,9 +741,11 @@ void Generator::GenerateMetaCall()
     OS_TemplateHeader << "\n" << TemplatePrefix << "int " << QualName
         << "::qt_metacall(QMetaObject::Call _c, int _id, void **_a)\n{\n";
     if (!BaseName.empty()) {
-        OS_TemplateHeader << "    _id = " << BaseName << "::qt_metacall(_c, _id, _a);\n"
-              "    if (_id < 0)\n"
-              "        return _id;\n";
+        OS_TemplateHeader << "    _id = " << BaseName << "::qt_metacall(_c, _id, _a);\n";
+        if (MethodCount || CDef->Properties.size()) {
+            OS_TemplateHeader << "    if (_id < 0)\n"
+                                 "        return _id;\n";
+        };
     }
 
     if (MethodCount) {
@@ -809,7 +811,7 @@ void Generator::GenerateMetaCall()
         HandleQueryPropertyAction(needUser, "QueryPropertyUser", &PropertyDef::user);
 
     }
-    OS_TemplateHeader << "\n    return _id;"
+    OS_TemplateHeader << "\n    return _id;\n"
           "}\n";
 }
 
