@@ -322,6 +322,17 @@ static std::pair<clang::StringLiteral*, clang::StringLiteral *> ExtractLiterals(
     return {Val1, Val2};
 }
 
+static void parseClassInfo(BaseDef &Def, clang::Expr *SubExp, clang::Preprocessor &PP)
+{
+    clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
+    std::tie(Val1, Val2) = ExtractLiterals(SubExp, PP, "Q_CLASSINFO",
+                                                        "Expected string literal in Q_CLASSINFO");
+
+    if (Val1 && Val2) {
+        Def.ClassInfo.emplace_back(Val1->getString(), Val2->getString());
+    }
+}
+
 static bool IsAnnotationStaticAssert(clang::Decl *Decl, llvm::StringRef *Key, clang::Expr **SubExp) {
     if (clang::StaticAssertDecl *S = llvm::dyn_cast<clang::StaticAssertDecl>(Decl)) {
         if (auto *E = llvm::dyn_cast<clang::UnaryExprOrTypeTraitExpr>(S->getAssertExpr()))
@@ -400,13 +411,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
             } else if (key == "qt_qgadget") {
                 Def.HasQGadget = true;
             } else if (key == "qt_classinfo") {
-                clang::StringLiteral *Val1 = nullptr, *Val2 = nullptr;
-                std::tie(Val1, Val2) = ExtractLiterals(SubExp, PP, "Q_CLASSINFO",
-                                                        "Expected string literal in Q_CLASSINFO");
-
-                if (Val1 && Val2) {
-                    Def.ClassInfo.emplace_back(Val1->getString(), Val2->getString());
-                }
+                parseClassInfo(Def, SubExp, PP);
             } else if (key == "qt_interfaces") {
                 parseInterfaces(Def, SubExp, Sema);
             } else if (key == "qt_plugin_metadata") {
@@ -478,6 +483,8 @@ NamespaceDef MocNg::parseNamespace(clang::NamespaceDecl* ND, clang::Sema& Sema)
                 parseEnums(Def, ND, false, SubExp, Sema);
             } else if (key == "qt_flags")  {
                 parseEnums(Def, ND, true, SubExp, Sema);
+            } else if (key == "qt_classinfo") {
+                parseClassInfo(Def, SubExp, Sema.getPreprocessor());
             }
         }
     }

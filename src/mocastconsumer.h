@@ -41,8 +41,13 @@ public:
     MocASTConsumer(clang::CompilerInstance &ci) :ci(ci)
     { }
 
-    virtual void Initialize(clang::ASTContext& Ctx) override;
+    void Initialize(clang::ASTContext& Ctx) override;
     void HandleTagDeclDefinition(clang::TagDecl* D) override;
-    virtual bool HandleTopLevelDecl(clang::DeclGroupRef D) override;
+    bool HandleTopLevelDecl(clang::DeclGroupRef D) override;
+
+    virtual bool shouldParseDecl(clang::Decl *D) { return true; }
+
+private:
+    void HandleNamespaceDefinition(clang::NamespaceDecl *D);
 };
 

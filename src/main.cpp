@@ -135,13 +135,13 @@ struct MocNGASTConsumer : public MocASTConsumer {
     }
 #endif
 
-    void HandleTagDeclDefinition(clang::TagDecl* D) override {
+    bool shouldParseDecl(clang::Decl * D) override {
         // We only want to parse the Qt macro in classes that are in the main file.
         auto SL = D->getSourceRange().getBegin();
         SL = ci.getSourceManager().getExpansionLoc(SL);
         if (ci.getSourceManager().getFileID(SL) != ci.getSourceManager().getMainFileID())
-            return;
-        MocASTConsumer::HandleTagDeclDefinition(D);
+            return false;
+        return true;
     }
 
     void HandleTranslationUnit(clang::ASTContext& Ctx) override {
@@ -149,7 +149,7 @@ struct MocNGASTConsumer : public MocASTConsumer {
         if (ci.getDiagnostics().hasErrorOccurred())
             return;
 
-        if (!objects.size()) {
+        if (!objects.size() && !namespaces.size()) {
           ci.getDiagnostics().Report(ci.getSourceManager().getLocForStartOfFile(ci.getSourceManager().getMainFileID()),
                                      ci.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Warning,
                                                                          "No relevant classes found. No output generated"));
