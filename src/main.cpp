@@ -196,7 +196,10 @@ struct MocNGASTConsumer : public MocASTConsumer {
                "#error \"This file was generated using MOC-NG " MOCNG_VERSION_STR ".\"\n"
                "#error \"It cannot be used with the include files from this version of Qt.\"\n"
                "#endif\n\n"
-               "QT_BEGIN_MOC_NAMESPACE\n";
+               "QT_BEGIN_MOC_NAMESPACE\n"
+               "#ifdef QT_WARNING_DISABLE_DEPRECATED\n"
+               "QT_WARNING_PUSH QT_WARNING_DISABLE_DEPRECATED\n"
+               "#endif\n";
 
         decltype(OS) OS_TemplateHeader = nullptr;
         if (!Options.OutputTemplateHeader.empty()) {
@@ -205,7 +208,10 @@ struct MocNGASTConsumer : public MocASTConsumer {
             if (!OS_TemplateHeader)
                 return;
             WriteHeader(*OS_TemplateHeader);
-            (*OS_TemplateHeader) << "QT_BEGIN_MOC_NAMESPACE\n";
+            (*OS_TemplateHeader) << "QT_BEGIN_MOC_NAMESPACE\n"
+               "#ifdef QT_WARNING_DISABLE_DEPRECATED\n"
+               "QT_WARNING_PUSH QT_WARNING_DISABLE_DEPRECATED\n"
+               "#endif\n";
         }
 
         for (const ClassDef &Def : objects ) {
@@ -222,10 +228,14 @@ struct MocNGASTConsumer : public MocASTConsumer {
           G.GenerateCode();
         };
 
-
-        Out << "QT_END_MOC_NAMESPACE\n";
+        llvm::StringRef footer =
+               "QT_END_MOC_NAMESPACE\n"
+               "#ifdef QT_WARNING_DISABLE_DEPRECATED\n"
+               "QT_WARNING_POP\n"
+               "#endif\n";
+        Out << footer;
         if (OS_TemplateHeader) {
-            (*OS_TemplateHeader) << "QT_END_MOC_NAMESPACE\n";
+            (*OS_TemplateHeader) << footer;
         }
     }
 };
