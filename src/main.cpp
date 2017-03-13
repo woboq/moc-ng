@@ -419,6 +419,8 @@ invalidArg:
   if (Options.Output.empty())
     Options.Output = "-";
 
+  if (!HasInput)
+    Argv.push_back("-");
 
   //FIXME
   Argv.push_back("-I/usr/include/qt5");
