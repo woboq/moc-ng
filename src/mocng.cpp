@@ -449,6 +449,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
     for (PropertyDef &P: Def.Properties) {
         if (!P.notify.Str.empty()) {
             int Idx = 0;
+            auto errorLevel = clang::DiagnosticsEngine::Error;
             for (clang::CXXMethodDecl *MD : Def.Signals) {
                 if (MD->getName() == P.notify.Str) {
                     P.notify.notifyId = Idx;
@@ -458,13 +459,43 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                 Idx += 1 + MD->getNumParams() - MD->getMinRequiredArguments();
             }
             if (P.notify.notifyId < 0 ) {
-                PP.getDiagnostics().Report(P.notify.Loc,
-                        PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
-                        "NOTIFY signal '%0' of property '%1' does not exist in class %2"))
-                    << P.notify.Str << P.name << Def.Record;
-            } else {
-                Def.NotifyCount++;
+                // Search in base classes
+                clang::CXXRecordDecl *Base = Def.Record;
+                do {
+                    if (!Base->getNumBases())
+                        break;
+                    Base = Base->bases_begin()->getType()->getAsCXXRecordDecl();
+                    if (!Base)
+                        break;
+                    for (auto it = Base->decls_begin(); it != Base->decls_end(); ++it) {
+                        if (auto *MD = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {
+
+                            if (MD->getIdentifier() && MD->getName() == P.notify.Str) {
+                                // We found a possible match. Check if it is indeed a signal
+                                if (std::any_of(MD->specific_attr_begin<clang::AnnotateAttr>(),
+                                                MD->specific_attr_end<clang::AnnotateAttr>(),
+                                                [&](const clang::AnnotateAttr *a) {
+                                                    return a->getAnnotation() == "qt_signal";
+                                                })) {
+                                    P.notify.MD = MD;
+                                    break;
+                                }
+                                // Since the official moc let this compile and the runtime will show
+                                // a warning, we just change the level to Warning.
+                                // (required for tst_qmetaobject which tests that)
+                                errorLevel = clang::DiagnosticsEngine::Warning;
+                            }
+                        }
+                    }
+                } while(!P.notify.MD);
             }
+            if (!P.notify.MD) {
+                PP.getDiagnostics().Report(P.notify.Loc,
+                        PP.getDiagnostics().getCustomDiagID(errorLevel,
+                            "NOTIFY signal '%0' of property '%1' does not exist in class %2"))
+                    << P.notify.Str << P.name << Def.Record;
+            }
+            Def.NotifyCount++;
         }
 
         if (P.revision > 0)

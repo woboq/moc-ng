@@ -1074,12 +1074,12 @@ void Generator::GenerateStaticMetaCall()
             } else if (!p.member.empty()) {
                 std::string M = Prefix + p.member;
                 std::string A = "*reinterpret_cast< " + p.type + "*>(_a[0])";
-                if (p.notify.notifyId >= 0) {
+                if (!p.notify.Str.empty()) {
                     OS_TemplateHeader << "\n"
                           "            if (" << M << " != " << A << ") {\n"
                           "                " << M << " = " << A << ";\n"
                           "                Q_EMIT _t->" << p.notify.Str << "(";
-                    if (p.notify.MD->getMinRequiredArguments() > 0)
+                    if (p.notify.MD && p.notify.MD->getMinRequiredArguments() > 0)
                         OS_TemplateHeader << M;
                     OS_TemplateHeader << ");\n"
                           "            } ";
@@ -1234,7 +1234,7 @@ void Generator::GenerateProperties()
             flags |= ResolveUser;
         else if (p.user != "false")
             flags |= User;
-        if (p.notify.notifyId != -1)
+        if (!p.notify.Str.empty())
             flags |= Notify;
         if (p.revision > 0)
             flags |= Revisioned;
@@ -1249,7 +1249,13 @@ void Generator::GenerateProperties()
     if(CDef->NotifyCount) {
          OS << "\n // properties: notify_signal_id\n";
          for (const PropertyDef &P : CDef->Properties) {
-             OS << "    " << std::max(0, P.notify.notifyId) << ",\n";
+            if (P.notify.notifyId >= 0) {
+                OS << "    " << P.notify.notifyId << ",\n";
+            } else if (!P.notify.Str.empty()) {
+                OS << "    0x70000000 | " << StrIdx(P.notify.Str) << ",\n";
+            } else {
+                OS << "    0,\n";
+            }
          }
      }
 
