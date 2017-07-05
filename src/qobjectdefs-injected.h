@@ -126,6 +126,8 @@ private: \
 #if defined(Q_MOC_RUN)
 #undef Q_OBJECT
 #define Q_OBJECT QT_ANNOTATE_CLASS(qt_qobject, "")
+#undef Q_ENUM_IMPL
+#define Q_ENUM_IMPL(ENUM)
 #endif
 
 #undef Q_OBJECT_FAKE
@@ -133,6 +135,11 @@ private: \
 
 #undef QT_MOC_COMPAT
 #define QT_MOC_COMPAT  __attribute__((annotate("qt_moc_compat")))
+
+//for qnamespace.h again
+#ifndef Q_DECLARE_FLAGS
+#define Q_DECLARE_FLAGS(Flags, Enum) typedef QFlags<Enum> Flags;
+#endif
 
 #endif
 )-";
