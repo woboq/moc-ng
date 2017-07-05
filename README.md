@@ -15,7 +15,7 @@ https://code.woboq.org/mocng/src/
 
 ## Compile
 
-You need llvm and clang (3.4, 3.5 or 3.6).
+You need llvm and clang (>= 3.4).
 Then run cmake and make (adapt your paths)
 
  cmake . -DCMAKE_CXX_COMPILER=/opt/llvm/bin/clang++  -DLLVM_CONFIG_EXECUTABLE=/opt/llvm/bin/llvm-config
@@ -54,3 +54,4 @@ Expecially the tst_moc and the tests for corelib/kernel.
 The tests that are known to fail are worked around in "workaroundtests.cpp".
 Tests for features not supported by normal Qt (such as templates) are found in
 the tests subdirectory.
+Check the README in the tests subdirectory for the moc-ng specific tests
