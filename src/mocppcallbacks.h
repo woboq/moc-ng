@@ -51,7 +51,11 @@ protected:
 #endif
 
 
-    void MacroUndefined(const clang::Token& MacroNameTok, MacroParam) override {
+    void MacroUndefined(const clang::Token& MacroNameTok, MacroParam
+#if CLANG_VERSION_MAJOR >= 5
+                        , const clang::MacroDirective *
+#endif
+                        ) override {
         //Workaround to get moc's test to compile
         if (MacroNameTok.getIdentifierInfo()->getName() == "QT_NO_KEYWORDS") {
             //re-inject qobjectdefs

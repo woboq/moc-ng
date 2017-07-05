@@ -164,7 +164,11 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
 #if CLANG_VERSION_MAJOR!=3 || CLANG_VERSION_MINOR>5
                 nullptr,
 #endif
-                CurDir, nullptr, nullptr, nullptr);
+                CurDir, nullptr, nullptr, nullptr
+#if CLANG_VERSION_MAJOR >= 5
+                , nullptr
+#endif
+                );
 
             if (!File) {
                 PP.getDiagnostics().Report(GetFromLiteral(StrToks.front(), Val, PP), clang::diag::err_pp_file_not_found)
