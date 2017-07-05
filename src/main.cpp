@@ -331,6 +331,7 @@ int main(int argc, const char **argv)
 
   bool NextArgNotInput = false;
   bool HasInput = false;
+  llvm::StringRef InputFile;
 
   for (int I = 1 ; I < argc; ++I) {
     if (argv[I][0] == '-') {
@@ -422,6 +423,7 @@ invalidArg:
             return EXIT_FAILURE;
         }
         HasInput = true;
+        InputFile = argv[I];
     }
     Argv.push_back(argv[I]);
   }
@@ -452,7 +454,13 @@ invalidArg:
 
   Argv.push_back("-fsyntax-only");
 
-  Argv.push_back("-include"); Argv.push_back("QtCore/QObject"); // QObject should always be included
+  if (!InputFile.endswith("qobject.h") && !InputFile.endswith("qnamespace.h")) {
+      // QObject should always be included
+      // But not not for qobject.h (or we would not detect the main file correctly) or
+      // qnamespace.h (that would break the Q_MOC_RUN workaround from MocPPCallbacks::EnterMainFile)
+      Argv.push_back("-include");
+      Argv.push_back("QtCore/qobject.h");
+  }
 
   clang::tooling::ToolInvocation Inv(Argv, new MocAction, &FM);
 
