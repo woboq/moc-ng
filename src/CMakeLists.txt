@@ -69,4 +69,8 @@ endforeach()
 configure_file(embedded_includes.h.in embedded_includes.h)
 include_directories(${CMAKE_CURRENT_BINARY_DIR})
 
-
+include("GNUInstallDirs")
+install(TARGETS moc mocng_plugin
+    RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
+    LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
+  )
