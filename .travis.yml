@@ -25,9 +25,20 @@ before_script:
     - g++ --version
 
 script:
-    - cmake .
+    # Build
+    - cmake . -DCMAKE_CXX_COMPILER=clang++ -DCMAKE_CXX_FLAGS=-D_GLIBCXX_USE_CXX11_ABI=0
     - make -j2
     - sudo cp src/moc `which moc`
+    # Run local tests for moc-ng as a drop-in replacement
     - mkdir test_build && cd test_build
-    - qmake
-    - make check -j2
+    - qmake ../tests QMAKE_MOC_OPTIONS="-D__artificial__=__unused__ -Wno-attributes  -Wno-ambiguous-ellipsis -I/opt/qt$QT_VERSION/include -I/opt/qt$QT_VERSION/include/QtCore"
+    - make check
+    - cd ..
+    # Run local tests for moc-ng as a plugin
+    - git ls-files | xargs sed -i 's|Q_OBJECT|/* qmake ignore Q_OBJECT */ Q_OBJECT|;s|Q_GADGET|/* qmake ignore Q_GADGET */ Q_GADGET|;s|Q_NAMESPACE|/* qmake ignore Q_NAMESPACE */ Q_NAMESPACE|;/^#include "moc_/d;/^#include ".*\.moc"$/d'
+    - mkdir test_plugin && cd test_plugin
+    - qmake ../tests QMAKE_CXX=clang++ "QMAKE_CXXFLAGS=-Xclang -load -Xclang $PWD/../src/libmocng_plugin.so -Xclang -add-plugin -Xclang moc" CONFIG+=no_moc
+    - make check
+    # Ideally we would need to run the full Qt CI with moc-ng, but that's a bit much for travis.
+
+

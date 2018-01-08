@@ -1,14 +1,14 @@
-load(moc)
 
 
 CONFIG += testcase
 CONFIG += parallel_test
 
-
 QT = testlib
 
 TARGET = tst_templates2
 TEMPLATEEHEADERS += templatedobj.h
+
+load(moc)
 
 defineReplace(mocngCmdBase) {
     RET =
@@ -20,10 +20,9 @@ defineReplace(mocngCmdBase) {
             incvar += -I$$shell_quote($$inc)
             incvar += $$QMAKE_FRAMEWORKPATH_FLAGS
     }
-    RET += $$QMAKE_MOC $(DEFINES) $$join(QMAKE_COMPILER_DEFINES, " -D", -D) $$incvar $$QMAKE_MOC_OPTIONS
+    RET += $$QMAKE_MOC $(DEFINES) $$incvar $$QMAKE_MOC_OPTIONS
     return($$RET)
 }
-
 
 !no_moc:for (s, TEMPLATEEHEADERS) {
     sf = $$absolute_path($$s, $$_PRO_FILE_PWD_)
@@ -48,6 +47,5 @@ defineReplace(mocngCmdBase) {
 
     QMAKE_EXTRA_COMPILERS += $$base $${base}_th
 }
-
 
 SOURCES += templatedobj.cpp tst_templates2.cpp
