@@ -10,6 +10,8 @@ This is really two project:
 
 Read the blog post:  https://woboq.com/blog/moc-with-clang.html
 
+[![Build Status](https://travis-ci.org/woboq/moc-ng.svg?branch=master)](https://travis-ci.org/woboq/moc-ng)
+
 ## Browse the source code online
 https://code.woboq.org/mocng/src/
 
