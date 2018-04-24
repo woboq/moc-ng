@@ -26,6 +26,9 @@
 namespace clang {
     class Preprocessor;
 }
+namespace llvm {
+    class MemoryBuffer;
+}
 
 // Abstract the API changes in clang
 

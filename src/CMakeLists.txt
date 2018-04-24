@@ -17,23 +17,33 @@
 #  *  along with this program.  If not, see <http://www.gnu.org/licenses/>.
 #  */
 
-cmake_minimum_required(VERSION 2.8)
+cmake_minimum_required(VERSION 3.1)
 
 project(mocng_plugin CXX)
 
-Find_Package(LLVM REQUIRED)
-#include_directories(${LLVM_INCLUDE_DIR})
-link_directories( ${LLVM_LIB_DIR} )
-
 Find_Package(Clang REQUIRED)
-include_directories(${CLANG_INCLUDE_DIRS})
+Find_Package(LLVM REQUIRED)
+message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
+message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
+
+
+set (CMAKE_CXX_STANDARD 11)
 
 SET(common_srcs mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp
                 qbjs.cpp clangversionabstraction.cpp workaroundtests.cpp)
 
-add_library(mocng_plugin SHARED plugin.cpp ${common_srcs})
+set(CLANG_LIBS clangFrontend clangParse clangSema clangAST clangBasic clangLex clangTooling
+               ${llvm_libs} LLVMObjectYAML LLVMSupport)
 
-target_link_libraries(mocng_plugin  ${CLANG_LIBS} ${LLVM_LIBS_CORE} )
+if (NOT APPLE)
+    #  Don't link with libs that overlaps our options
+    SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -Wl,--as-needed" )
+endif()
+
+
+add_library(mocng_plugin SHARED plugin.cpp ${common_srcs})
+target_include_directories(mocng_plugin PRIVATE ${CLANG_INCLUDE_DIRS})
+target_link_libraries(mocng_plugin  ${CLANG_LIBS}  )
 
 set_target_properties(mocng_plugin PROPERTIES
          LINKER_LANGUAGE CXX
@@ -41,25 +51,21 @@ set_target_properties(mocng_plugin PROPERTIES
          SOVERSION 1.0)
 
 add_executable(moc  main.cpp ${common_srcs})
-target_link_libraries(moc   ${CLANG_LIBS} ${LLVM_LIBS_CORE} ${LLVM_LDFLAGS} )
+target_include_directories(moc PRIVATE ${CLANG_INCLUDE_DIRS})
+target_link_libraries(moc ${CLANG_LIBS})
 
-# install(TARGETS mocng_plugin LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
-# install(TARGETS moc LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR})
-
-SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${LLVM_COMPILE_FLAGS}  -std=c++11 -fno-exceptions -Wall")
+SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions -fno-rtti -Wall")
 
 if (APPLE)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}  -stdlib=libc++ ")
     SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS}  -stdlib=libc++" )
 endif()
 
-
 # Embed the clang header into the binary:
-exec_program(${LLVM_CONFIG_EXECUTABLE} ARGS --version      OUTPUT_VARIABLE LLVM_VERSION )
 string(REPLACE "svn" "" LLVM_VERSION "${LLVM_VERSION}")
 string(REGEX REPLACE "git.*$" "" LLVM_VERSION "${LLVM_VERSION}")
 if(NOT CLANG_BUILTIN_HEADERS_DIR)
-    set(CLANG_BUILTIN_HEADERS_DIR "${LLVM_BIN_DIR}/../lib/clang/${LLVM_VERSION}/include")
+    set(CLANG_BUILTIN_HEADERS_DIR "${LLVM_BINARY_DIR}/lib/clang/${LLVM_VERSION}/include")
 endif()
 file(GLOB BUILTINS_HEADERS "${CLANG_BUILTIN_HEADERS_DIR}/*.h")
 if(NOT BUILTINS_HEADERS)
