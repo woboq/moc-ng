@@ -21,19 +21,28 @@ cmake_minimum_required(VERSION 3.1)
 
 project(mocng_plugin CXX)
 
-Find_Package(Clang REQUIRED)
 Find_Package(LLVM REQUIRED)
 message(STATUS "Found LLVM ${LLVM_PACKAGE_VERSION}")
 message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
-
+Find_Package(Clang REQUIRED CONFIG HINTS "${LLVM_INSTALL_PREFIX}/lib/cmake/clang")
+message(STATUS "Found Clang in ${CLANG_INSTALL_PREFIX}")
 
 set (CMAKE_CXX_STANDARD 11)
 
 SET(common_srcs mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp
                 qbjs.cpp clangversionabstraction.cpp workaroundtests.cpp)
 
-set(CLANG_LIBS clangFrontend clangParse clangSema clangAST clangBasic clangLex clangTooling
-               ${llvm_libs} LLVMObjectYAML LLVMSupport)
+set(CLANG_LIBS clangFrontend clangParse clangSema clangAST clangBasic clangLex clangTooling)
+
+if(TARGET LLVM)
+    set(CLANG_LIBS ${CLANG_LIBS} LLVM)
+else()
+   # We cannot use llvm_config() here because in some versions it uses PRIVATE when calling target_link_libraries
+   # and in some it doesn't. If our calls of target_link_libraries don't do it the same way, we get a
+   # fatal error.
+   llvm_map_components_to_libnames(llvm_libs core support objectyaml)
+   set(CLANG_LIBS ${CLANG_LIBS} ${llvm_libs})
+endif()
 
 if (NOT APPLE)
     #  Don't link with libs that overlaps our options
@@ -43,7 +52,7 @@ endif()
 
 add_library(mocng_plugin SHARED plugin.cpp ${common_srcs})
 target_include_directories(mocng_plugin PRIVATE ${CLANG_INCLUDE_DIRS})
-target_link_libraries(mocng_plugin  ${CLANG_LIBS}  )
+target_link_libraries(mocng_plugin PRIVATE ${CLANG_LIBS}  )
 
 set_target_properties(mocng_plugin PROPERTIES
          LINKER_LANGUAGE CXX
@@ -52,7 +61,7 @@ set_target_properties(mocng_plugin PROPERTIES
 
 add_executable(moc  main.cpp ${common_srcs})
 target_include_directories(moc PRIVATE ${CLANG_INCLUDE_DIRS})
-target_link_libraries(moc ${CLANG_LIBS})
+target_link_libraries(moc PRIVATE ${CLANG_LIBS})
 
 SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -fno-exceptions -fno-rtti -Wall")
 
@@ -65,7 +74,7 @@ endif()
 string(REPLACE "svn" "" LLVM_VERSION "${LLVM_VERSION}")
 string(REGEX REPLACE "git.*$" "" LLVM_VERSION "${LLVM_VERSION}")
 if(NOT CLANG_BUILTIN_HEADERS_DIR)
-    set(CLANG_BUILTIN_HEADERS_DIR "${LLVM_BINARY_DIR}/lib/clang/${LLVM_VERSION}/include")
+    set(CLANG_BUILTIN_HEADERS_DIR "${LLVM_LIBRARY_DIR}/clang/${LLVM_VERSION}/include")
 endif()
 file(GLOB BUILTINS_HEADERS "${CLANG_BUILTIN_HEADERS_DIR}/*.h")
 if(NOT BUILTINS_HEADERS)
