@@ -82,7 +82,15 @@ bool MocPPCallbacks::FileNotFound(llvm::StringRef FileName, llvm::SmallVectorImp
     return false;
 }
 
-void MocPPCallbacks::InclusionDirective(clang::SourceLocation HashLoc, const clang::Token& IncludeTok, llvm::StringRef FileName, bool IsAngled, clang::CharSourceRange FilenameRange, const clang::FileEntry* File, llvm::StringRef SearchPath, llvm::StringRef RelativePath, const clang::Module* Imported)
+void MocPPCallbacks::InclusionDirective(clang::SourceLocation HashLoc, const clang::Token& IncludeTok,
+                                        llvm::StringRef FileName, bool IsAngled,
+                                        clang::CharSourceRange FilenameRange,
+                                        const clang::FileEntry* File, llvm::StringRef SearchPath,
+                                        llvm::StringRef RelativePath, const clang::Module* Imported
+#if CLANG_VERSION_MAJOR >= 7
+                                        , clang::SrcMgr::CharacteristicKind
+#endif
+                                       )
 {
     if (!File && ShouldWarnHeaderNotFound) {
         /* This happens when we are not running as a plugin

@@ -69,7 +69,11 @@ protected:
     void InclusionDirective(clang::SourceLocation HashLoc, const clang::Token& IncludeTok,
                             llvm::StringRef FileName, bool IsAngled, clang::CharSourceRange FilenameRange,
                             const clang::FileEntry* File, llvm::StringRef SearchPath, llvm::StringRef RelativePath,
-                            const clang::Module* Imported) override;
+                            const clang::Module* Imported
+#if CLANG_VERSION_MAJOR >= 7
+                            , clang::SrcMgr::CharacteristicKind
+#endif
+                  ) override;
 
     void Defined(const clang::Token& MacroNameTok
 #if CLANG_VERSION_MAJOR != 3 || CLANG_VERSION_MINOR > 2

@@ -157,9 +157,7 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
             llvm::StringRef Filename = Literal.GetString();
             const clang::DirectoryLookup *CurDir;
             const clang::FileEntry *File = PP.LookupFile(
-#if CLANG_VERSION_MAJOR!=3 || CLANG_VERSION_MINOR>3
-                Val->getLocStart(),
-#endif
+                Val->getSourceRange().getBegin(),
                 Filename, false, nullptr,
 #if CLANG_VERSION_MAJOR!=3 || CLANG_VERSION_MINOR>5
                 nullptr,
