@@ -467,13 +467,13 @@ PropertyDef PropertyParser::parseProperty(bool PrivateProperty) {
                 clang::LookupResult Found(Sema, PP.getIdentifierInfo(v), ParamLoc, clang::Sema::LookupMemberName);
                 Sema.LookupQualifiedName(Found, RD);
                 if (Found.empty()) {
-#if CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR < 6
+#if (CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR < 6) || CLANG_VERSION_MAJOR >= 9
                     clang::DeclFilterCCC<clang::CXXMethodDecl> Validator;
 #endif
                     if (clang::TypoCorrection Corrected =
                             Sema.CorrectTypo(Found.getLookupNameInfo(), clang::Sema::LookupMemberName,
                                              nullptr, nullptr,
-#if CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR < 6
+#if (CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR < 6)  || CLANG_VERSION_MAJOR >= 9
                                              Validator,
 #else
                                              llvm::make_unique<clang::DeclFilterCCC<clang::CXXMethodDecl>>(),

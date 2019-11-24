@@ -32,7 +32,7 @@ set (CMAKE_CXX_STANDARD 11)
 SET(common_srcs mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp
                 qbjs.cpp clangversionabstraction.cpp workaroundtests.cpp)
 
-set(CLANG_LIBS clangFrontend clangParse clangSema clangAST clangBasic clangLex clangTooling)
+set(CLANG_LIBS clangFrontend clangParse clangSema clangAST clangBasic clangLex clangTooling clangSerialization)
 
 if(TARGET LLVM)
     set(CLANG_LIBS ${CLANG_LIBS} LLVM)
