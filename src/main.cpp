@@ -273,7 +273,7 @@ protected:
 
 public:
     // CHECK
-    virtual bool hasCodeCompletionSupport() const { return true; }
+    virtual bool hasCodeCompletionSupport() const override { return true; }
 };
 
 static void showVersion(bool /*Long*/) {
