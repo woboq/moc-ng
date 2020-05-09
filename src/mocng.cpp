@@ -156,20 +156,33 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
         else {
             llvm::StringRef Filename = Literal.GetString();
             const clang::DirectoryLookup *CurDir;
-            const clang::FileEntry *File = PP.LookupFile(
-                Val->getSourceRange().getBegin(),
-                Filename, false, nullptr,
-#if CLANG_VERSION_MAJOR!=3 || CLANG_VERSION_MINOR>5
-                nullptr,
+#if CLANG_VERSION_MAJOR < 10
+            const clang::FileEntry *File =
+#else
+            const clang::Optional<clang::FileEntryRef> fileRef
+                {
 #endif
-                CurDir, nullptr, nullptr, nullptr
-#if CLANG_VERSION_MAJOR >= 5
-                , nullptr
+                    PP.LookupFile(
+                                    Val->getSourceRange().getBegin(),
+                                    Filename, false, nullptr,
+                    #if CLANG_VERSION_MAJOR!=3 || CLANG_VERSION_MINOR>5
+                                    nullptr,
+                    #endif
+                                    CurDir, nullptr, nullptr, nullptr
+                    #if CLANG_VERSION_MAJOR >= 5
+                                    , nullptr
+                    #endif
+                    #if CLANG_VERSION_MAJOR >= 9
+                                    , nullptr
+                    #endif
+                    )
+#if CLANG_VERSION_MAJOR >= 10
+                };
+
+            const clang::FileEntry *File = fileRef ? &fileRef->getFileEntry() : nullptr;
+#else
+                    ;
 #endif
-#if CLANG_VERSION_MAJOR >= 9
-                , nullptr
-#endif
-                );
 
             if (!File) {
                 PP.getDiagnostics().Report(GetFromLiteral(StrToks.front(), Val, PP), clang::diag::err_pp_file_not_found)
