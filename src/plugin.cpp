@@ -34,7 +34,7 @@ static bool IsQtInternal(const clang::CXXMethodDecl *MD) {
   return (Name.startswith("qt_") || Name == "metaObject");
 }
 
-class MocPluginASTConsumer : public MocASTConsumer {
+class MocPluginASTConsumer final : public MocASTConsumer {
     bool done = false;
 
     bool HandleTopLevelDecl(clang::DeclGroupRef D) override {
@@ -186,7 +186,7 @@ public:
     MocPluginASTConsumer(clang::CompilerInstance& ci) : MocASTConsumer(ci) {}
 };
 
-class MocPluginAction : public clang::PluginASTAction {
+class MocPluginAction final : public clang::PluginASTAction {
 protected:
     #if CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR <= 5
     clang::ASTConsumer *
@@ -198,6 +198,10 @@ protected:
     }
     bool ParseArgs(const clang::CompilerInstance& CI, const std::vector< std::string >& arg) override {
         return true;
+    }
+
+    ActionType getActionType() override {
+      return AddAfterMainAction;
     }
 };
 
