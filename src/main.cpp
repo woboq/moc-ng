@@ -121,7 +121,7 @@ struct MocDiagConsumer : clang::DiagnosticConsumer {
 
 
 
-struct MocNGASTConsumer : public MocASTConsumer {
+struct MocNGASTConsumer final : public MocASTConsumer {
     std::string InFile;
     MocNGASTConsumer(clang::CompilerInstance& ci, llvm::StringRef InFile) : MocASTConsumer(ci), InFile(InFile) { }
 

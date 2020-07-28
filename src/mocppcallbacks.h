@@ -21,7 +21,7 @@
 #include <clang/Basic/Version.h>
 #include <set>
 
-class MocPPCallbacks : public clang::PPCallbacks {
+class MocPPCallbacks final : public clang::PPCallbacks {
     clang::Preprocessor &PP;
 
     bool IncludeNotFoundSupressed = false;
