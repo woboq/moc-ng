@@ -125,33 +125,33 @@ class MocPluginASTConsumer final : public MocASTConsumer {
               Key = nullptr;
 
           if (!Key) {
-              for (auto it = RD->method_begin(); it != RD->method_end(); ++it ) {
+              for (auto Method : RD->methods()) {
 
-                  if (Key && !it->isVirtual())
+                  if (Key && !Method->isVirtual())
                       continue;
 
-                  if (it->isPure() || it->isImplicit() || it->hasInlineBody()
-                          || it->isInlineSpecified() || !it->isUserProvided() )
+                  if (Method->isPure() || Method->isImplicit() || Method->hasInlineBody()
+                          || Method->isInlineSpecified() || !Method->isUserProvided() )
                       continue;
 
                   const clang::FunctionDecl *Def;
-                  if (it->hasBody(Def) && Def->isInlineSpecified())
+                  if (Method->hasBody(Def) && Def->isInlineSpecified())
                       continue;
 
-                  if (IsQtInternal(*it))
+                  if (IsQtInternal(Method))
                       continue;
 
                   /* if (Key->isFunctionTemplateSpecialization())
                       continue; */
 
-                  if (std::any_of(it->specific_attr_begin<clang::AnnotateAttr>(),
-                                  it->specific_attr_end<clang::AnnotateAttr>(),
+                  if (std::any_of(Method->specific_attr_begin<clang::AnnotateAttr>(),
+                                  Method->specific_attr_end<clang::AnnotateAttr>(),
                                   [](clang::AnnotateAttr *A) {
                                       return A->getAnnotation() == "qt_signal";
                                   }))
                       continue;
 
-                  Key = *it;
+                  Key = Method;
                   if (Key->isVirtual())
                       break;
               }

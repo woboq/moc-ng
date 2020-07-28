@@ -371,10 +371,10 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
     ClassDef Def;
     Def.Record = RD;
 
-    for (auto it = RD->decls_begin(); it != RD->decls_end(); ++it) {
+    for (auto decl : RD->decls()) {
         llvm::StringRef key;
         clang::Expr *SubExp;
-        if (IsAnnotationStaticAssert(*it, &key, &SubExp)) {
+        if (IsAnnotationStaticAssert(decl, &key, &SubExp)) {
             if (key == "qt_property") {
                 clang::StringLiteral *Val = llvm::dyn_cast<clang::StringLiteral>(SubExp);
                 if (Val) {
@@ -385,7 +385,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                     Def.Properties.push_back(Parser.parseProperty());
                     Def.addExtra(Parser.Extra);
                 } else {
-                    PP.getDiagnostics().Report((*it)->getLocation(),
+                    PP.getDiagnostics().Report(decl->getLocation(),
                                                 PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
                                                 "Invalid Q_PROPERTY annotation"));
                 }
@@ -437,7 +437,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                 parsePluginMetaData(Def, SubExp, Sema);
                 HasPlugin = true;
             }
-        } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {
+        } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(decl)) {
             for (auto attr_it = M->specific_attr_begin<clang::AnnotateAttr>();
                 attr_it != M->specific_attr_end<clang::AnnotateAttr>();
                 ++attr_it) {
