@@ -35,7 +35,7 @@ void MocASTConsumer::Initialize(clang::ASTContext& Ctx) {
 
     // We will enable this when we require Qt >= 5.6.1 and libclang >= 3.8
     // Then we will be able to get rid of qobjectdefs-injected
-#if 0
+#if 1
     std::string qtPredefinesBuffer;
     llvm::raw_string_ostream qtPredefines(qtPredefinesBuffer);
     clang::MacroBuilder builder(qtPredefines);

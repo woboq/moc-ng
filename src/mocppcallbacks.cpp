@@ -21,10 +21,12 @@
 #include "clangversionabstraction.h"
 
 void MocPPCallbacks::InjectQObjectDefs(clang::SourceLocation Loc) {
-    #include "qobjectdefs-injected.h"
+#if 0
+#include "qobjectdefs-injected.h"
     auto Buf = maybe_unique(llvm::MemoryBuffer::getMemBuffer(Injected, "qobjectdefs-injected.moc"));
     Loc = PP.getSourceManager().getFileLoc(Loc);
     PP.EnterSourceFile( CreateFileIDForMemBuffer(PP, Buf, Loc), nullptr, Loc);
+#endif
 }
 
 void MocPPCallbacks::EnterMainFile(llvm::StringRef Name)

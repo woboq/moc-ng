@@ -156,20 +156,33 @@ static void parsePluginMetaData(ClassDef &Def, clang::Expr *Content, clang::Sema
         else {
             llvm::StringRef Filename = Literal.GetString();
             const clang::DirectoryLookup *CurDir;
-            const clang::FileEntry *File = PP.LookupFile(
-                Val->getSourceRange().getBegin(),
-                Filename, false, nullptr,
-#if CLANG_VERSION_MAJOR!=3 || CLANG_VERSION_MINOR>5
-                nullptr,
+#if CLANG_VERSION_MAJOR < 10
+            const clang::FileEntry *File =
+#else
+            const clang::Optional<clang::FileEntryRef> fileRef
+                {
 #endif
-                CurDir, nullptr, nullptr, nullptr
-#if CLANG_VERSION_MAJOR >= 5
-                , nullptr
+                    PP.LookupFile(
+                                    Val->getSourceRange().getBegin(),
+                                    Filename, false, nullptr,
+                    #if CLANG_VERSION_MAJOR!=3 || CLANG_VERSION_MINOR>5
+                                    nullptr,
+                    #endif
+                                    CurDir, nullptr, nullptr, nullptr
+                    #if CLANG_VERSION_MAJOR >= 5
+                                    , nullptr
+                    #endif
+                    #if CLANG_VERSION_MAJOR >= 9
+                                    , nullptr
+                    #endif
+                    )
+#if CLANG_VERSION_MAJOR >= 10
+                };
+
+            const clang::FileEntry *File = fileRef ? &fileRef->getFileEntry() : nullptr;
+#else
+                    ;
 #endif
-#if CLANG_VERSION_MAJOR >= 9
-                , nullptr
-#endif
-                );
 
             if (!File) {
                 PP.getDiagnostics().Report(GetFromLiteral(StrToks.front(), Val, PP), clang::diag::err_pp_file_not_found)
@@ -340,8 +353,9 @@ static void parseClassInfo(BaseDef &Def, clang::Expr *SubExp, clang::Preprocesso
 
 static bool IsAnnotationStaticAssert(clang::Decl *Decl, llvm::StringRef *Key, clang::Expr **SubExp) {
     if (clang::StaticAssertDecl *S = llvm::dyn_cast<clang::StaticAssertDecl>(Decl)) {
-        if (auto *E = llvm::dyn_cast<clang::UnaryExprOrTypeTraitExpr>(S->getAssertExpr()))
-            if (clang::ParenExpr *PE = llvm::dyn_cast<clang::ParenExpr>(E->getArgumentExpr()))
+        if (auto *Cast = llvm::dyn_cast<clang::ImplicitCastExpr>(S->getAssertExpr()))
+            if (auto *E = llvm::dyn_cast<clang::UnaryExprOrTypeTraitExpr>(Cast->getSubExpr()))
+                if (clang::ParenExpr *PE = llvm::dyn_cast<clang::ParenExpr>(E->getArgumentExpr()))
                 {
                     *Key = S->getMessage()->getString();
                     *SubExp = PE->getSubExpr();
@@ -357,10 +371,10 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
     ClassDef Def;
     Def.Record = RD;
 
-    for (auto it = RD->decls_begin(); it != RD->decls_end(); ++it) {
+    for (auto decl : RD->decls()) {
         llvm::StringRef key;
         clang::Expr *SubExp;
-        if (IsAnnotationStaticAssert(*it, &key, &SubExp)) {
+        if (IsAnnotationStaticAssert(decl, &key, &SubExp)) {
             if (key == "qt_property") {
                 clang::StringLiteral *Val = llvm::dyn_cast<clang::StringLiteral>(SubExp);
                 if (Val) {
@@ -371,7 +385,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                     Def.Properties.push_back(Parser.parseProperty());
                     Def.addExtra(Parser.Extra);
                 } else {
-                    PP.getDiagnostics().Report((*it)->getLocation(),
+                    PP.getDiagnostics().Report(decl->getLocation(),
                                                 PP.getDiagnostics().getCustomDiagID(clang::DiagnosticsEngine::Error,
                                                 "Invalid Q_PROPERTY annotation"));
                 }
@@ -423,7 +437,7 @@ ClassDef MocNg::parseClass(clang::CXXRecordDecl* RD, clang::Sema& Sema)
                 parsePluginMetaData(Def, SubExp, Sema);
                 HasPlugin = true;
             }
-        } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(*it)) {
+        } else if (clang::CXXMethodDecl *M = llvm::dyn_cast<clang::CXXMethodDecl>(decl)) {
             for (auto attr_it = M->specific_attr_begin<clang::AnnotateAttr>();
                 attr_it != M->specific_attr_end<clang::AnnotateAttr>();
                 ++attr_it) {

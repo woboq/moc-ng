@@ -27,7 +27,7 @@ message(STATUS "Using LLVMConfig.cmake in: ${LLVM_DIR}")
 Find_Package(Clang REQUIRED CONFIG HINTS "${LLVM_INSTALL_PREFIX}/lib/cmake/clang")
 message(STATUS "Found Clang in ${CLANG_INSTALL_PREFIX}")
 
-set (CMAKE_CXX_STANDARD 11)
+set (CMAKE_CXX_STANDARD 14)
 
 SET(common_srcs mocng.cpp generator.cpp propertyparser.cpp mocppcallbacks.cpp mocastconsumer.cpp
                 qbjs.cpp clangversionabstraction.cpp workaroundtests.cpp)

@@ -28,7 +28,7 @@ Then run cmake and make (adapt your paths)
  * As a binary:  replace the moc provided by Qt by the one which is in src/moc
 
  * As a clang plugin: Tell your build system not to run moc, and add this to the CXXFLAGS
-    -Xclang -load  -Xclang /path/to/src/libmocng_plugin.so -Xclang -add-plugin -Xclang moc
+    `-fplugin=/path/to/src/libmocng_plugin.so`
 
 ## Differences with upstream moc
 
