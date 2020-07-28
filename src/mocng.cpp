@@ -353,8 +353,9 @@ static void parseClassInfo(BaseDef &Def, clang::Expr *SubExp, clang::Preprocesso
 
 static bool IsAnnotationStaticAssert(clang::Decl *Decl, llvm::StringRef *Key, clang::Expr **SubExp) {
     if (clang::StaticAssertDecl *S = llvm::dyn_cast<clang::StaticAssertDecl>(Decl)) {
-        if (auto *E = llvm::dyn_cast<clang::UnaryExprOrTypeTraitExpr>(S->getAssertExpr()))
-            if (clang::ParenExpr *PE = llvm::dyn_cast<clang::ParenExpr>(E->getArgumentExpr()))
+        if (auto *Cast = llvm::dyn_cast<clang::ImplicitCastExpr>(S->getAssertExpr()))
+            if (auto *E = llvm::dyn_cast<clang::UnaryExprOrTypeTraitExpr>(Cast->getSubExpr()))
+                if (clang::ParenExpr *PE = llvm::dyn_cast<clang::ParenExpr>(E->getArgumentExpr()))
                 {
                     *Key = S->getMessage()->getString();
                     *SubExp = PE->getSubExpr();
