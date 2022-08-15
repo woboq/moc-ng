@@ -1,6 +1,6 @@
 # moc-ng:  a replacement for Qt's moc that is using clang libraries
 
-This is really two project:
+This is really two projects:
 
   * A plugin for clang which removes the needs of running moc
     if your code is compiled with this plugin.
