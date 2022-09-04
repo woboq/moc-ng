@@ -121,7 +121,7 @@ struct MocDiagConsumer : clang::DiagnosticConsumer {
 
 
 
-struct MocNGASTConsumer : public MocASTConsumer {
+struct MocNGASTConsumer final : public MocASTConsumer {
     std::string InFile;
     MocNGASTConsumer(clang::CompilerInstance& ci, llvm::StringRef InFile) : MocASTConsumer(ci), InFile(InFile) { }
 
@@ -273,7 +273,7 @@ protected:
 
 public:
     // CHECK
-    virtual bool hasCodeCompletionSupport() const { return true; }
+    virtual bool hasCodeCompletionSupport() const override { return true; }
 };
 
 static void showVersion(bool /*Long*/) {
@@ -448,7 +448,13 @@ invalidArg:
 
   if (PreprocessorOnly) {
       Argv.push_back("-P");
-      clang::tooling::ToolInvocation Inv(Argv, new clang::PrintPreprocessedAction, &FM);
+      clang::tooling::ToolInvocation Inv(Argv,
+    #if CLANG_VERSION_MAJOR >= 10
+        std::make_unique<clang::PrintPreprocessedAction>(),
+    #else
+        new clang::PrintPreprocessedAction,
+    #endif
+        &FM);
       return !Inv.run();
   }
 
@@ -462,7 +468,13 @@ invalidArg:
       Argv.push_back("QtCore/qobject.h");
   }
 
-  clang::tooling::ToolInvocation Inv(Argv, new MocAction, &FM);
+  clang::tooling::ToolInvocation Inv(Argv,
+    #if CLANG_VERSION_MAJOR >= 10
+        std::make_unique<MocAction>(),
+    #else
+        new MocAction,
+    #endif
+        &FM);
 
   const EmbeddedFile *f = EmbeddedFiles;
   while (f->filename) {

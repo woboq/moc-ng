@@ -34,7 +34,7 @@ static bool IsQtInternal(const clang::CXXMethodDecl *MD) {
   return (Name.startswith("qt_") || Name == "metaObject");
 }
 
-class MocPluginASTConsumer : public MocASTConsumer {
+class MocPluginASTConsumer final : public MocASTConsumer {
     bool done = false;
 
     bool HandleTopLevelDecl(clang::DeclGroupRef D) override {
@@ -125,33 +125,33 @@ class MocPluginASTConsumer : public MocASTConsumer {
               Key = nullptr;
 
           if (!Key) {
-              for (auto it = RD->method_begin(); it != RD->method_end(); ++it ) {
+              for (auto Method : RD->methods()) {
 
-                  if (Key && !it->isVirtual())
+                  if (Key && !Method->isVirtual())
                       continue;
 
-                  if (it->isPure() || it->isImplicit() || it->hasInlineBody()
-                          || it->isInlineSpecified() || !it->isUserProvided() )
+                  if (Method->isPure() || Method->isImplicit() || Method->hasInlineBody()
+                          || Method->isInlineSpecified() || !Method->isUserProvided() )
                       continue;
 
                   const clang::FunctionDecl *Def;
-                  if (it->hasBody(Def) && Def->isInlineSpecified())
+                  if (Method->hasBody(Def) && Def->isInlineSpecified())
                       continue;
 
-                  if (IsQtInternal(*it))
+                  if (IsQtInternal(Method))
                       continue;
 
                   /* if (Key->isFunctionTemplateSpecialization())
                       continue; */
 
-                  if (std::any_of(it->specific_attr_begin<clang::AnnotateAttr>(),
-                                  it->specific_attr_end<clang::AnnotateAttr>(),
+                  if (std::any_of(Method->specific_attr_begin<clang::AnnotateAttr>(),
+                                  Method->specific_attr_end<clang::AnnotateAttr>(),
                                   [](clang::AnnotateAttr *A) {
                                       return A->getAnnotation() == "qt_signal";
                                   }))
                       continue;
 
-                  Key = *it;
+                  Key = Method;
                   if (Key->isVirtual())
                       break;
               }
@@ -186,7 +186,7 @@ public:
     MocPluginASTConsumer(clang::CompilerInstance& ci) : MocASTConsumer(ci) {}
 };
 
-class MocPluginAction : public clang::PluginASTAction {
+class MocPluginAction final : public clang::PluginASTAction {
 protected:
     #if CLANG_VERSION_MAJOR == 3 && CLANG_VERSION_MINOR <= 5
     clang::ASTConsumer *
@@ -198,6 +198,10 @@ protected:
     }
     bool ParseArgs(const clang::CompilerInstance& CI, const std::vector< std::string >& arg) override {
         return true;
+    }
+
+    ActionType getActionType() override {
+      return AddAfterMainAction;
     }
 };
 
